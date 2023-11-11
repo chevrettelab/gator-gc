@@ -13,12 +13,15 @@ import argparse
 import seaborn as sns
 import multiprocessing
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 from Bio import SeqIO
 from scipy.stats import norm
 from operator import itemgetter
 from datetime import datetime
+from pygenomeviz import GenomeViz
 from typing import List, Set, Dict
+from matplotlib.patches import Patch 
 
 ## Constants
 NRPS = set(['NRPS-C', 'NRPS-A'])
@@ -38,7 +41,7 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
 MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
-VERSION = 'v0.8.0'
+VERSION = 'v0.8.5'
 DESCRIPTION = """
 
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /--- 
@@ -59,6 +62,8 @@ Please contact me at jcedielbecerra@ufl.edu if you have any questions
 Version:"""+VERSION
 
 np.random.seed(53000)
+plt.rcParams['font.family'] = 'Arial'
+
 stime = time.time()
 
 def parse_arguments():
@@ -361,7 +366,7 @@ def generating_windows_genbanks(final_window: List[Dict], output_directory: str)
             SeqIO.write(sub_seq, outf, 'genbank')
         window_count += 1
 
-def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict[str, List[Dict[str, int]]], opt_hits_by_contig: Dict[str, List[Dict[str, int]]], windows_tsv: str) -> None:
+def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict[str, List[Dict[str, int]]], opt_hits_by_contig: Dict[str, List[Dict[str, int]]], windows_tsv: str) -> List:
     ## What function does:
      # Export a TSV file containig all required and optional hits organized by windows
     ## Arguments:
@@ -374,17 +379,12 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
     genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     final_window_extension = []
     for file_path in genbank_files:
-        num_window = file_path.split('/')[-1].split('--')[0].split('_')[1]
-        window = file_path.split('/')[-1].split('--')[0]
+        window_genome = os.path.basename(file_path).split('--')[0]
+        num_window = window_genome.split('_')[1]
         for rec in SeqIO.parse(file_path, 'genbank'):
             for feat in rec.features:
                 if feat.type == 'CDS':
                     final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
-                                                   'product': feat.qualifiers['product'][0],
-                                                   'locus_ori': "1" if feat.location.strand == 1 else "-1",
-                                                   'start': int(feat.location.start),
-                                                   'end': int(feat.location.end),
-                                                   'locus_length': abs(int(feat.location.start) - int(feat.location.end)), 
                                                    'window': num_window})
     flattened_req_hits_by_contig = [item for sublist in req_hits_by_contig.values() for item in sublist]
     flattened_opt_hits_by_contig = [item for sublist in opt_hits_by_contig.values() for item in sublist]
@@ -414,6 +414,7 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
         window_opt_hits_tsv.writeheader()
         for dictionaries in sorted_by_window:
             window_opt_hits_tsv.writerows(dictionaries)
+    return flattened_req_hits_by_contig, flattened_opt_hits_by_contig
 
 def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
     ## What function does:
@@ -439,7 +440,7 @@ def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
                                 seq = feat.qualifiers['translation'][0]
                             if name is not None and seq is not None:
                                 out_fh.write('>'+name+"\n"+seq+"\n")
-    
+                                
 def create_diamond_database(db_faa: str, database_name: str) -> None:
     ## What function does
      # Create a dmnd db using the provided FASTA file.
@@ -559,16 +560,97 @@ def generating_clustermap(concatenated_GFSs: str, output_dir: str) -> None:
     matrix_gcfs = gcfs.pivot(index='Genbank Windows', columns='Gator Focal Window', values='Gator Focal Score')
     matrix_gcfs = matrix_gcfs.fillna(0)
     fig, ax = plt.subplots(figsize=(13, 10))
-    gcfs_clustermap = sns.clustermap(matrix_gcfs, annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, linewidths=0.2, linecolor='black', xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2})
-    #plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0, size=5) 
-    #plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90, size=5) 
-    #ax.set_xlabel('Gw', fontsize=5)
-    #ax.set_ylabel('Ges', fontsize=5)
-    #ax.set_title('Heatmap of Gre', fontsize=5)
-    #cbar = ax.collections[0].colorbar
-    #cbar.ax.tick_params(labelsize=10)
-    gcfs_clustermap.savefig(output_dir, dpi=300)
+    gcfs_clustermap = sns.clustermap(matrix_gcfs, linewidths=0.1, linecolor='black', annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2})
+    gcfs_clustermap.savefig(output_dir, dpi=1200)
 
+def calculating_gator_conservation_percentages(pa_tables_directory: str) -> Dict:
+    percentages = {}
+    for pa_tables_path in glob.glob(os.path.join(pa_tables_directory, '*.csv')):
+        window_genbank= os.path.splitext(os.path.basename(pa_tables_path))[0]
+        pa_tables = pd.read_csv(pa_tables_path)
+        loci = pa_tables.columns[1:]
+        percentages[window_genbank] = {}
+        for locus in loci:
+            percentage = (pa_tables[locus].sum() / len(pa_tables[locus]))
+            percentages[window_genbank][locus] = percentage
+    return percentages
+    
+def opacity_to_hex(opacity: int) -> int:
+    ## What function does
+     # Convert the opacity values in hexadecimal string format
+    ## Arguments:
+     # opacity (int): values from 0 to 1
+    ## returns:
+     # A hexadecimal string format for the opacity (alpha)
+    return hex(int(opacity * 255))[2:].zfill(2)
+
+def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List, flattened_opt_hits_by_contig: List, percentages: Dict, directory_output: str) -> None:
+    ## What function does
+     # Generates a gator conservation figure for each window
+    ## Arguments:
+     # genbank_dir (str): A string containing the directory path for the windows Genbanks
+     # flattened_req_hits_by_contig (List): A list containing all the required hits grouped by the same contig
+     # flattened_opt_hits_by_contig (List): A list containing all the optional hits grouped by the same contig
+     # directory_output (str): A string containing the directory path wanted to save the gator conservation figures
+    ## Returns:
+     # None: It just generates the gator conservation figures
+    genbank_extensions = ['*.gbk', '*.gbff', '*.gb']
+    genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
+    req_loci = [req_hits['locus'] for req_hits in flattened_req_hits_by_contig]
+    opt_loci = [opt_hits['locus'] for opt_hits in flattened_opt_hits_by_contig]
+    for file_path in genbank_files:
+        loci_list = []
+        window_genome = os.path.splitext(os.path.basename(file_path))[0]
+        window = window_genome.split('--')[0]
+        for rec in SeqIO.parse(file_path, 'genbank'):
+            for feat in rec.features:
+                if feat.type == 'CDS':
+                    locus = feat.qualifiers['locus_tag'][0]
+                    record_length = len(rec)
+                    start = int(feat.location.start)
+                    end = int(feat.location.end)
+                    strand = feat.location.strand
+                    annotation = feat.qualifiers['product'][0]
+                    loci_list.append((start, end, strand, locus, annotation))
+        gv = GenomeViz(
+            fig_width = 20,
+            fig_track_height = 0.5,
+            align_type = "left",
+            feature_track_ratio =  1.0,
+            link_track_ratio = 1.0,
+            tick_track_ratio = 1.0,
+            track_spines = False,
+            tick_style = "bar",
+            plot_size_thr = 0,
+            tick_labelsize = 15,
+        )
+        track = gv.add_feature_track(window, record_length, labelmargin=0.03, linecolor="#333333", linewidth=2)
+        for index, cds_tuple in enumerate(loci_list, 1):
+            start, end, strand, locus, annotation = cds_tuple
+            opacity = 0
+            for inner in percentages.values():
+                if locus in inner:
+                    opacity = inner[locus]
+                    break
+            alpha = opacity_to_hex(opacity)
+            if locus in req_loci:
+                color = '#7570B3' + alpha
+                label = annotation + ' (req)'
+            elif locus in opt_loci:
+                color = '#C87137' + alpha
+                label = annotation + ' (opt)'
+            else:
+                color = '#008423' + alpha
+                label = ''
+            track.add_feature(start, end, strand, facecolor="white")
+            track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=10, linewidth=1.5, labelvpos="top")
+            track.set_sublabel(text=f"{round(record_length/1000, 2)} Kb", ymargin=1.5)
+        os.makedirs(directory_output, exist_ok=True)
+        output_filepath = os.path.join(directory_output, f"{window_genome}.svg")
+        fig = gv.plotfig()
+        gv.set_colorbar(fig, bar_colors=['#7570B3ff', '#C87137ff', '#008423ff'], alpha=1, vmin=0, vmax=100, bar_height=1.4, bar_label="Conservation", bar_labelsize=13)
+        fig.savefig(output_filepath, dpi=1200)
+        
 #################################################################################
 #################################################################################
 #################################################################################
@@ -638,7 +720,7 @@ print("[5.2]" + print_datetime(), 'Generating Genbank Files for the Windows')
 generating_windows_genbanks(final_window, f"{args.out}/windows_genbanks")
 
 ## making table for windows and optional hits                                                                                                                                            
-making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv')
+flattened_req_hits_by_contig, flattened_opt_hits_by_contig = making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv')
 
 ## making protein database for the windows
 with tempfile.NamedTemporaryFile(dir=args.out, prefix='allvall_proteins_', suffix='.faa', mode='w', delete=False) as allvall_proteins:
@@ -671,6 +753,13 @@ concatenating_gator_focal_scores(f"{args.out}/gator_scores", f"{args.out}/concat
 print("[12]" + print_datetime(), 'Generating the Clustermap for the GFS concatenate')
 generating_clustermap(f"{args.out}/concatenated_scores/concatenated_GFS.csv", f"{args.out}/concatenated_scores/clustermap_GFSs.svg")
 
+## calculating locus conservation percentage
+percentages = calculating_gator_conservation_percentages(f"{args.out}/presence_absence")
+
+## making the gator conservation figures                                                                                                                     
+print("[13]" + print_datetime(), 'Generating the Gator Conservation Figures')
+gator_conservation_plot(f"{args.out}/windows_genbanks/", flattened_req_hits_by_contig, flattened_opt_hits_by_contig, percentages, f"{args.out}/gator_conservation_plots")
+
 ## elapsed time
 etime = time.time()
 ftime = round((etime - stime) / 60, 2)
@@ -683,4 +772,4 @@ else:
     ftime /= 60
     time_unit = "hours"
 
-print("[13]" + print_datetime(), f"Elapsed time: {ftime:.1f} {time_unit}")
+print("[14]" + print_datetime(), f"Elapsed time: {ftime:.1f} {time_unit}")
