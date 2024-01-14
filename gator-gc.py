@@ -13,14 +13,13 @@ import argparse
 import seaborn as sns
 import multiprocessing
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 
 from Bio import SeqIO
 from scipy.stats import norm
 from operator import itemgetter
 from datetime import datetime
 from pygenomeviz import GenomeViz
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Tuple
 from matplotlib.patches import Patch 
 
 ## Constants
@@ -41,7 +40,9 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
 MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
-VERSION = 'v0.8.5'
+GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
+
+VERSION = 'v0.9.0'
 DESCRIPTION = """
 
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /--- 
@@ -55,8 +56,9 @@ DESCRIPTION = """
     -----\--\ -------\ ----\ ---\--\ ---\ --\ ------\ ----\---------\ /----
     \----/--/ -------/ ----/ ---/--/ ---/ --/ ------/ ----/---------/ \----/
 
-GATOR-GC: Genomic Assesment Tool for Orthologous Regions and Gene Clusters
-Authors: José D.D Cediel-Becerra, Valérie de Crécy-Lagard, Marc G. Chevrette
+GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
+Developer: José D. D. Cediel-Becerra
+Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette
 Afiliation: Microbiology & Cell Science Deparment, University of Florida
 Please contact me at jcedielbecerra@ufl.edu if you have any questions
 Version:"""+VERSION
@@ -208,14 +210,24 @@ def parse_modular_domain_genome_hits(modular_domain_hit: Dict, protein_dict: Dic
      # protein_dict (Dict): Same protein_dict dictionary structure than before but with the is_nrps and is_pks boolean decision performed
     ## Returns:
      # protein_dict (Dict): Same protein_dict dictionary structure but with a new subkey 'hit', which will be feeded with the domain hit 
-    modular_hit_set = set() 
+    mhs_nrps, mhs_pks, mhs_hybrid = set(), set(), set() 
     for genome_protein in modular_domain_hit:
-        if NRPS.issubset(modular_domain_hit[genome_protein]) or PKS.issubset(modular_domain_hit[genome_protein]):
-            modular_hit_set.add(genome_protein)
-            modular_hit_dict = {'hit': modular_hit_set}
-    for query_protein in protein_dict: 
-        if protein_dict[query_protein]['is_nrps'] or protein_dict[query_protein]['is_pks']:
-            protein_dict[query_protein]['hit'] = modular_hit_dict['hit']
+        if NRPS.issubset(modular_domain_hit[genome_protein]) and PKS.issubset(modular_domain_hit[genome_protein]):
+            mhs_hybrid.add(genome_protein)
+        if NRPS.issubset(modular_domain_hit[genome_protein]):
+            mhs_nrps.add(genome_protein)
+        if PKS.issubset(modular_domain_hit[genome_protein]):
+            mhs_pks.add(genome_protein)
+    modular_hit_dict = {'mhs_nrps': mhs_nrps, 'mhs_pks': mhs_pks, 'mhs_hybrid': mhs_hybrid}
+    for query_protein in protein_dict:  
+        if 'hit' not in protein_dict[query_protein]:
+            protein_dict[query_protein]['hit'] = set()
+        if protein_dict[query_protein]['is_nrps'] and protein_dict[query_protein]['is_pks']:
+            protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_hybrid'])
+        elif protein_dict[query_protein]['is_nrps']:
+            protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_nrps'])
+        elif protein_dict[query_protein]['is_pks']:
+            protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_pks'])        
     return protein_dict
 
 def run_diamond(query: str, dmnddb: str, dmnd_out: str, threads: int, query_cover: float, identity: float, max_matches: int = int(1e50)) -> None:
@@ -258,23 +270,25 @@ def parse_diamond_search(dmnd: str, protein_dict: Dict) -> None:
             query_protein, dmnd_hit = columns[0], columns[1]
             if query_protein not in protein_dict:
                 protein_dict[query_protein] = {'hit': set()}
-            if 'hit' not in protein_dict[query_protein]:
+            elif 'hit' not in protein_dict[query_protein]:
                 protein_dict[query_protein]['hit'] = set()
             protein_dict[query_protein]['hit'].add(dmnd_hit)
     return protein_dict
 
-def grouping_user_req_opt_proteins_by_contig(protein_dict: Dict, query_type) -> [Dict, Set]:
+def grouping_user_req_opt_proteins_by_contig(protein_dict: Dict, query_type: str) -> [Dict, Set]:
     ## What function does:
      # Groups required and optional user proteins by the same contig id and make a new key 'window' to assign na values
     ## Arguments:
-    # protein_dict (Dict): Same protein_dict dictionary structure than before
-    # query_type (str): A string for the query_type (req, opt)
+     # protein_dict (Dict): Same protein_dict dictionary structure than before
+     # query_type (str): A string for the query_type (req, opt)
     ## Returns:
      # hits_by_contig (Dict): A dictionary containing all the required and/or optional hits grouped by the same contig id
      # all_required_proteins (Set): A set containing all the required user proteins 
     hits_by_contig = {}
     all_required_proteins = set()
     for query_proteins in protein_dict:
+        if 'query_type' not in protein_dict[query_proteins]:
+            print(query_proteins)
         if protein_dict[query_proteins]['query_type'] == query_type:
             all_required_proteins.add(query_proteins)
             for hit in protein_dict[query_proteins]['hit']:
@@ -283,16 +297,18 @@ def grouping_user_req_opt_proteins_by_contig(protein_dict: Dict, query_type) -> 
                     hits_by_contig[genome_contig_id] = []
                 hits_by_contig[genome_contig_id].append({'query_protein': query_proteins,
                                                          'query_type': protein_dict[query_proteins]['query_type'],
+                                                         'is_nrps': protein_dict[query_proteins]['is_nrps'],
+                                                         'is_pks': protein_dict[query_proteins]['is_pks'],
                                                          'start_position': int(start_position),
                                                          'end_position': int(end_position),
                                                          'locus': locus,
                                                          'genome_contig_id': genome_contig_id,
-                                                         'window': 'na'})  
+                                                         'window': 'na'})
     return hits_by_contig, all_required_proteins
 
 def checking_all_required_proteins(init_window: List, all_required_proteins: Set, final_window: List[Dict]) -> None:
     ## What function does:
-     # Checks if all elements in `all_required_proteins` are present in the init_window. If yes, it appends the init_window to the final_window.
+     # Checks if all elements in 'all_required_proteins' are present in the init_window. If yes, it appends the init_window to the final_window.
     ## Arguments:
      # intit_window (List): A temporary list used to hold dictionaries that belong to the same contig.
      # A new window is started when the ‘genome_contig_id’ value changes or when intergenic distance is larger than threshold. The init_window list is cleared each time a new group starts
@@ -301,11 +317,11 @@ def checking_all_required_proteins(init_window: List, all_required_proteins: Set
     if all_required_proteins == {data['query_protein'] for data in init_window}:
         final_window.append(init_window)
         
-def checking_distance_bw_loci(req_hits_by_contig: Dict[str, List[Dict[str, int]]], all_required_proteins: Set) -> List[Dict]:
+def checking_distance_bw_loci(req_hits_by_contig: Dict, all_required_proteins: Set) -> List[Dict]:
     ## What function does:
      # Define the windows based on the same contig, intergenic distance between loci and the presence of all required user proteins
     ## Arguments:
-     # req_hits_by_contig (Dict[str, List[Dict[str, int]]]): A dictionary containing lists of dictionaries with required hits grouped by the same contig id
+     # req_hits_by_contig (Dict): A dictionary containing lists of dictionaries with required hits grouped by the same contig id
      # all_required_proteins (Set): A set containing all the required user proteins
     ## Returns:
      # final_window (List[Dict]): A list of dictionaries containing the windows that passed all conditions of contig id, intergenic distance and presence of all required user proteins
@@ -331,7 +347,7 @@ def checking_distance_bw_loci(req_hits_by_contig: Dict[str, List[Dict[str, int]]
         sys.exit(1)
     return final_window
 
-def generating_windows_genbanks(final_window: List[Dict], output_directory: str) -> None:
+def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Dict, opt_hits_by_contig: Dict, output_directory: str) -> None:
     ## What function does:
      # Generates the Genbank files for the windows found
     ## Arguments:
@@ -358,25 +374,60 @@ def generating_windows_genbanks(final_window: List[Dict], output_directory: str)
                         max_end = len(record_to_write)
                     sub_seq = record_to_write[min_start:max_end]
                     sub_seq.annotations["molecule_type"] = "DNA"
+                    for feat in sub_seq.features:
+                        if feat.type == "CDS":
+                            feat.qualifiers["gator_query"] = ["na"]
+                            feat.qualifiers["gator_nrps"] = ["false"]
+                            feat.qualifiers["gator_pks"] = ["false"]
+                            feat.qualifiers["gator_hit"] = ["na"]
+                            if feat.location.start <= (0 + 500) or feat.location.end >= (len(sub_seq) - 500):
+                                feat.qualifiers["contig_edge"] = ["true"]
+                            else:
+                                feat.qualifiers["contig_edge"] = ["false"]
+                            for key in req_hits_by_contig:
+                                for item in req_hits_by_contig[key]:
+                                    if feat.qualifiers["locus_tag"][0] == item["locus"]:
+                                        feat.qualifiers["gator_query"] = item["query_type"]
+                                        if item["is_nrps"]:
+                                            feat.qualifiers["gator_nrps"] = ["true"]
+                                        elif item["is_pks"]:
+                                            feat.qualifiers["gator_pks"] = ["true"]
+                                        else:
+                                            feat.qualifiers["gator_hit"] = [item["query_protein"]]
+                                                                        
+                            for	key in opt_hits_by_contig:
+                                for item in opt_hits_by_contig[key]:
+                                    if feat.qualifiers["locus_tag"][0] == item["locus"]:
+                                        feat.qualifiers["gator_query"] = item["query_type"]
+                                        if item["is_nrps"]:
+                                            feat.qualifiers["gator_nrps"] = ["true"]
+                                        elif item["is_pks"]:
+                                            feat.qualifiers["gator_pks"] = ["true"]
+                                        else:
+                                            feat.qualifiers["gator_hit"] = [item["query_protein"]]
+                                                
         os.makedirs(output_directory, exist_ok=True)
         basename, extension = os.path.splitext(os.path.basename(genome))
-        file_name = f"window_{window_count}--{basename}{extension}"
+        file_name = f"window_{window_count}--{basename}.gbff"
         output_file = os.path.join(output_directory, file_name)
         with open(output_file, 'w') as outf:
+            ### return sub_seq to save everything we need, and the window_count
             SeqIO.write(sub_seq, outf, 'genbank')
         window_count += 1
 
-def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict[str, List[Dict[str, int]]], opt_hits_by_contig: Dict[str, List[Dict[str, int]]], windows_tsv: str) -> List:
+def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict, opt_hits_by_contig: Dict, windows_tsv: str) -> List:
     ## What function does:
      # Export a TSV file containig all required and optional hits organized by windows
     ## Arguments:
      # genbank_dir (str): A string for the directory folder name containing the Genabank window files
-     # req_hits_by_contig (Dict[str, List[Dict[str, int]]]): A dictionary containing a list of dictionaries for all required hits
-     # opt_hits_by_contig (Dict[str, List[Dict[str, int]]]): A dictionary containing a list of dictionaries for all optional hits 
+     # req_hits_by_contig (Dict): A dictionary containing a list of dictionaries for all required hits
+     # opt_hits_by_contig (Dict): A dictionary containing a list of dictionaries for all optional hits 
     ## Returns:
      # None
-    genbank_extensions = ['*.gbk', '*.gbff', '*.gb']
-    genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
+    flattened_req_hits_by_contig = [item for sublist in req_hits_by_contig.values() for item in sublist]
+    flattened_opt_hits_by_contig = [item for sublist in opt_hits_by_contig.values() for item in sublist]
+    req_opt_hits_list = flattened_req_hits_by_contig + flattened_opt_hits_by_contig
+    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     final_window_extension = []
     for file_path in genbank_files:
         window_genome = os.path.basename(file_path).split('--')[0]
@@ -386,9 +437,6 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
                 if feat.type == 'CDS':
                     final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
                                                    'window': num_window})
-    flattened_req_hits_by_contig = [item for sublist in req_hits_by_contig.values() for item in sublist]
-    flattened_opt_hits_by_contig = [item for sublist in opt_hits_by_contig.values() for item in sublist]
-    req_opt_hits_list = flattened_req_hits_by_contig + flattened_opt_hits_by_contig
     for req_opt_hits in req_opt_hits_list:
         for window_req_opt_hits in final_window_extension:
             if req_opt_hits['locus'] == window_req_opt_hits['locus']:
@@ -424,18 +472,18 @@ def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
      # db_faa (str): output file name for the generated FASTA file containing protein sequences that will become dmnd db.
     ## Returns:
      #  None
-    genbank_extensions = ['*.gbk', '*.gbff', '*.gb']
-    genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
+    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     with open(db_faa, 'w') as out_fh:
         for file_path in genbank_files:
             genome = os.path.basename(file_path)
+            window = genome.split('--')[0]
             with open(file_path, 'r') as in_fh:
                 for rec in SeqIO.parse(in_fh, 'genbank'):
                     for feat in rec.features:
                         if feat.type == 'CDS':
                             name, seq = None, None
                             if 'locus_tag' in feat.qualifiers:
-                                name = "|-|".join([genome, feat.qualifiers['locus_tag'][0]])
+                                name = "|-|".join([genome, feat.qualifiers['locus_tag'][0], window, str(int(feat.location.start)), str(int(feat.location.end)), feat.qualifiers['contig_edge'][0], str(int(len(rec)))])
                             if 'translation' in feat.qualifiers:
                                 seq = feat.qualifiers['translation'][0]
                             if name is not None and seq is not None:
@@ -495,11 +543,12 @@ def calculating_gator_focal_scores(pa_tables_directory: str, windows_table: str,
     ## Returns:
      # None: It just generates dataframes containing the Gator Focal Scores.
     for pa_tables_path in glob.glob(os.path.join(pa_tables_directory, '*.csv')):
-        pa_tables = pd.read_csv(pa_tables_path, index_col=[0])
+        pa_tables = pd.read_csv(pa_tables_path, delimiter=",")
+        pa_tables = pa_tables.rename(columns={pa_tables.columns[0]: 'Genbank Windows'})
         with open(windows_table, 'r') as fh:
             rows = fh.readlines()
             windows_tsv = rows[1:]
-            loci = [rows.split()[4] for rows in windows_tsv]
+            loci = [rows.split()[6] for rows in windows_tsv]
             processed_loci = set()
             max_normal_distribution = None
             for locus in loci:
@@ -519,13 +568,14 @@ def calculating_gator_focal_scores(pa_tables_directory: str, windows_table: str,
         pa_tables[loci_pa_tables] = pa_tables[loci_pa_tables].multiply(max_normal_distribution)                               
         sum_res = pa_tables[loci_pa_tables].sum(axis=1)
         basename, extension = os.path.splitext(os.path.basename(pa_tables_path))
-        pa_tables['Gator Focal Window'] = f"{basename}"
+        pa_tables['Gator Focal Window'] = f"{basename}.gbff"
         pa_tables['Gator Focal Sum'] = sum_res
         pa_tables['Gator Focal Score'] = sum_res / sum_res.max()
         pa_tables = pa_tables.sort_values(by='Gator Focal Score', ascending=False)
+        pa_tables = pa_tables.loc[pa_tables['Genbank Windows'] == f"{basename}.gbff"].append(pa_tables.loc[pa_tables ['Genbank Windows'] != f"{basename}.gbff"])
         os.makedirs(directory_output, exist_ok=True)
         output_filepath = os.path.join(directory_output, f"{basename}_GFS.csv")
-        pa_tables.to_csv(output_filepath, index=True)
+        pa_tables.to_csv(output_filepath, index=False)
 
 def concatenating_gator_focal_scores(directory_input: str, directory_output: str) -> None:
     ## What function does
@@ -560,10 +610,16 @@ def generating_clustermap(concatenated_GFSs: str, output_dir: str) -> None:
     matrix_gcfs = gcfs.pivot(index='Genbank Windows', columns='Gator Focal Window', values='Gator Focal Score')
     matrix_gcfs = matrix_gcfs.fillna(0)
     fig, ax = plt.subplots(figsize=(13, 10))
-    gcfs_clustermap = sns.clustermap(matrix_gcfs, linewidths=0.1, linecolor='black', annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2})
+    gcfs_clustermap = sns.clustermap(matrix_gcfs, linewidths=1, linecolor='black', annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2})
     gcfs_clustermap.savefig(output_dir, dpi=1200)
 
 def calculating_gator_conservation_percentages(pa_tables_directory: str) -> Dict:
+    ## What function does
+     # Calculate the Gator Conservation Percentages from the presence absence tables
+    ## Arguments:
+     # pa_tables_directory (str): A string for the directory name containing the presence-absence tables
+    ## Returns:
+     # Dict: A dictionary containing as outer key the Gator Focal Window, as inner keys the loci and as values the conservation percentages
     percentages = {}
     for pa_tables_path in glob.glob(os.path.join(pa_tables_directory, '*.csv')):
         window_genbank= os.path.splitext(os.path.basename(pa_tables_path))[0]
@@ -584,6 +640,54 @@ def opacity_to_hex(opacity: int) -> int:
      # A hexadecimal string format for the opacity (alpha)
     return hex(int(opacity * 255))[2:].zfill(2)
 
+def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict, req_loci: List, opt_loci: List) -> None: 
+    ## What function does
+     # Make the neighborhoods tracks for the figures
+    ## Arguments:
+     # track (str): A string containing the window name and lenght of the record
+     # is_focal (str): A string with a boolean decision when track is for a focal window
+     # loci_list (List): A list containing the loci needed to display in the tracks
+     # percentages (Dict): A dictionary containing the information about the conservation percentages for each gator focal window
+     # req_loci (List): A list containing required loci, used to define their color and label in the tracks
+     # opt_loci (List): A list containing optional loci, used to define their color and label in the tracks  
+    ## Returns:
+     # None: It just generates the tracks
+    for index, cds_tuple in enumerate(loci_list, 1):
+        start, end, strand, locus, annotation, gator_query, gator_nrps, gator_pks, gator_hit = cds_tuple
+        opacity = 0
+        for inner in percentages.values():
+            if locus in inner:
+                opacity = inner[locus]
+                break
+        alpha = opacity_to_hex(opacity)
+        if locus in req_loci:
+            color = '#7570B3'
+            if gator_hit != 'na':
+                label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
+            else:
+                if gator_nrps and gator_pks == 'true':
+                    label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
+                elif gator_nrps == 'true':
+                    label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
+                else:
+                    label = f'[{gator_query}:gator_pks]' + ' ' + annotation if is_focal else None
+        elif locus in opt_loci:
+            color = '#C87137' + alpha
+            if gator_hit != 'na':
+                label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
+            else:
+                if gator_nrps and gator_pks == 'true':
+                    label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
+                elif gator_nrps == 'true':
+                    label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
+                else:
+                    label = f'[{gator_query}:gator_pks]' + ' ' + annotation if is_focal else None
+        else:
+            color = '#008423' + alpha
+            label = ''
+        track.add_feature(start, end, strand, facecolor="white")
+        track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=15, linewidth=1.5, labelvpos="top")
+        
 def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List, flattened_opt_hits_by_contig: List, percentages: Dict, directory_output: str) -> None:
     ## What function does
      # Generates a gator conservation figure for each window
@@ -594,28 +698,32 @@ def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List
      # directory_output (str): A string containing the directory path wanted to save the gator conservation figures
     ## Returns:
      # None: It just generates the gator conservation figures
-    genbank_extensions = ['*.gbk', '*.gbff', '*.gb']
-    genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
+    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     req_loci = [req_hits['locus'] for req_hits in flattened_req_hits_by_contig]
     opt_loci = [opt_hits['locus'] for opt_hits in flattened_opt_hits_by_contig]
+    windows = {}
     for file_path in genbank_files:
         loci_list = []
+        window_gbff = os.path.basename(file_path)
         window_genome = os.path.splitext(os.path.basename(file_path))[0]
         window = window_genome.split('--')[0]
         for rec in SeqIO.parse(file_path, 'genbank'):
             for feat in rec.features:
                 if feat.type == 'CDS':
-                    locus = feat.qualifiers['locus_tag'][0]
-                    record_length = len(rec)
-                    start = int(feat.location.start)
-                    end = int(feat.location.end)
-                    strand = feat.location.strand
-                    annotation = feat.qualifiers['product'][0]
-                    loci_list.append((start, end, strand, locus, annotation))
+                    loci_list.append((int(feat.location.start),
+                                      int(feat.location.end),
+                                      feat.location.strand,
+                                      feat.qualifiers['locus_tag'][0],
+                                      feat.qualifiers.get('product', ['no_annotation'])[0],
+                                      feat.qualifiers['gator_query'][0],
+                                      feat.qualifiers['gator_nrps'][0],
+                                      feat.qualifiers['gator_pks'][0],
+                                      feat.qualifiers['gator_hit'][0]))
+        windows[window_gbff] = {'window': window, 'record_length': len(rec), 'loci_list': loci_list}
         gv = GenomeViz(
             fig_width = 20,
             fig_track_height = 0.5,
-            align_type = "left",
+            align_type = "center",
             feature_track_ratio =  1.0,
             link_track_ratio = 1.0,
             tick_track_ratio = 1.0,
@@ -623,34 +731,179 @@ def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List
             tick_style = "bar",
             plot_size_thr = 0,
             tick_labelsize = 15,
-        )
-        track = gv.add_feature_track(window, record_length, labelmargin=0.03, linecolor="#333333", linewidth=2)
-        for index, cds_tuple in enumerate(loci_list, 1):
-            start, end, strand, locus, annotation = cds_tuple
-            opacity = 0
-            for inner in percentages.values():
-                if locus in inner:
-                    opacity = inner[locus]
-                    break
-            alpha = opacity_to_hex(opacity)
-            if locus in req_loci:
-                color = '#7570B3' + alpha
-                label = annotation + ' (req)'
-            elif locus in opt_loci:
-                color = '#C87137' + alpha
-                label = annotation + ' (opt)'
-            else:
-                color = '#008423' + alpha
-                label = ''
-            track.add_feature(start, end, strand, facecolor="white")
-            track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=10, linewidth=1.5, labelvpos="top")
-            track.set_sublabel(text=f"{round(record_length/1000, 2)} Kb", ymargin=1.5)
+        )        
+        track = gv.add_feature_track(window, len(rec), labelmargin=0.03, linecolor="#333333", linewidth=2)
+        making_tracks(track, True, loci_list, percentages, req_loci, opt_loci)
+        track.set_sublabel(text=f"{round(len(rec)/1000, 2)} Kb", ymargin=1.5)                                                
         os.makedirs(directory_output, exist_ok=True)
         output_filepath = os.path.join(directory_output, f"{window_genome}.svg")
         fig = gv.plotfig()
         gv.set_colorbar(fig, bar_colors=['#7570B3ff', '#C87137ff', '#008423ff'], alpha=1, vmin=0, vmax=100, bar_height=1.4, bar_label="Conservation", bar_labelsize=13)
         fig.savefig(output_filepath, dpi=1200)
+    return windows, req_loci, opt_loci
         
+def ordering_windows_by_GFSs(concatenated_GFSs: str) -> Dict:
+    ## What function does
+     # Order the windows found based on the gator focal scores for each gator focal window
+    ## Arguments:
+     # concatenated_GFSs (str): A string containing the path for the concatenate table with the information about gator focal window and gator focal scores
+    ## returns:
+     # Dict: A dictionary containing as keys the gator focal window, and as values a list of gator windows ordered based on the gator focal scores
+    ordered_windows, ordered_windows_w_focal, ordered_windows_GFS = {}, {}, {}
+    with open(concatenated_GFSs, 'r') as fh:
+        next(fh)
+        for row in fh:
+            columns = row.strip().split(',')
+            gator_focal, gator_no_focal, gator_score = columns[1], columns[0], float(columns[3])
+            if gator_focal not in ordered_windows:
+                ordered_windows[gator_focal] = []
+            ordered_windows[gator_focal].append(gator_no_focal)
+            if gator_focal not in ordered_windows_w_focal:
+                ordered_windows_w_focal[gator_focal] = []
+            ordered_windows_w_focal[gator_focal].append(gator_no_focal)
+            if gator_focal not in ordered_windows_GFS:
+                ordered_windows_GFS[gator_focal] = {}
+            ordered_windows_GFS[gator_focal][gator_no_focal] = gator_score
+    for key in ordered_windows:
+        if ordered_windows[key]:  
+            ordered_windows[key].pop(0)
+    return ordered_windows, ordered_windows_w_focal, ordered_windows_GFS
+
+def parsing_diamond_identity(dmnd_out: str) -> Dict:
+    ## What function does
+     # Make a nested dictionary to group query window and hit window and their corresponding protein percent identity from the alignment 
+    ## Arguments:
+     # dmnd_out (str): A string containing the path for the diamond output
+    ## returns:
+     # Dict: A dictionary containing the protein percent identity for each query window and hit window
+    windows_identity = {}
+    all_hits = {}
+    with open(dmnd_out, 'r') as fh:
+        for row in fh:
+            columns = row.strip().split('\t')
+            col0, col1 = columns[0].split('|-|'), columns[1].split('|-|')
+            query_window, locus_query, query_start, query_end, contig_edge, record_length_query, hit_window, locus_hit, hit_start, hit_end, record_length_hit, per_identity = col0[0], col0[1], int(col0[3]), int(col0[4]), col0[5], int(col0[6]), col1[0], col1[1], int(col1[3]), int(col1[4]), int(col1[6]), float(columns[2])
+                                                
+           
+            if query_window not in windows_identity:
+                windows_identity[query_window] = {}
+            if hit_window not in windows_identity[query_window]:
+                windows_identity[query_window][hit_window] = []
+            windows_identity[query_window][hit_window].append({'query_window': query_window.split('--')[0],
+                                                               'query_start': query_start,
+                                                               'query_end': query_end,
+                                                               'hit_window': hit_window.split('--')[0],
+                                                               'hit_start': hit_start,
+                                                               'hit_end': hit_end,
+                                                               'per_identity': per_identity,
+                                                               'record_length_query': record_length_query,
+                                                               'record_length_hit': record_length_hit,
+                                                               'contig_edge': contig_edge
+                                                               })
+
+            if locus_query not in all_hits:
+                all_hits[locus_query] = {}
+            all_hits[locus_query][locus_hit] = per_identity
+    return windows_identity, all_hits
+
+def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
+    ## What function does                                                                                                                                                   
+     # make a list of required focal hits
+    ## Arguments:                                                                                                                                                               
+     # loci_list_focal (List): a list containing all the information about the proteins for the focal windows
+     # all_hits (Dict): a dictionary containing all the protein diamond alignment hits in a nested dicionary for each protein     
+    ## returns:                                                                                                                                                                 
+     # Tuple: a list containing focal hits and the strand string for the focal window
+    for i, cds_focal in enumerate(loci_list_focal, 1):
+        startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf = cds_focal
+        if gqueryf == 'req':
+            hlog = all_hits[locusf].keys()
+            return (hlog, strandf)
+
+def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
+    ## What function does                                                                                                                                                   
+     # Update the strand, and loci positions for the non-focal windows if strand for the first focal required protein is different than the one in the non-focal window
+    ## Arguments:                                                                                                                                                               
+     # hlog (List): a list containing focal hits
+     # strandf (str): a string containing the strand for the focal window
+     # loci_list_no_focal (List): a list containing all the information about the proteins for the non-focal windows   
+    ## returns:                                                                                                                                                                 
+     # Tuple: a list containing the information about the proteins for the non-focal windows and a string for the boolean decision for flip condition.
+    flip = False
+    for i, cds_no_focal in enumerate(loci_list_no_focal, 1):
+        startn, endn, strandn, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn = cds_no_focal
+        if locusn in hlog:
+            if strandf != strandn:
+                flip = True
+                break
+    if flip:
+        new_loci_list = []
+        for i, cds_no_focal in enumerate(loci_list_no_focal, 1):
+            startn, endn, strandn, locusn, productn, gqueryn, gnrpsn , gpksn, ghitn = cds_no_focal
+            nstrand = strandn * -1
+            nstartn = record_length - endn
+            nendn = record_length - startn
+            new_loci_list.append((nstartn, nendn, nstrand, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn))
+        return new_loci_list, flip
+    else:
+        return loci_list_no_focal, flip
+        
+def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dict,  ordered_windows_w_focal: Dict, windows_identity: Dict, directory_output: str, percentages: Dict, req_loci: List, opt_loci: List, ordering_windows_by_GFS) -> None:
+    ## What function does
+     # Make gator neighborhoods for each gator focal window with the correspinding gator windows ordered based on the gator focal scores
+    ## Arguments:
+     # windows (Dict): A dictionary containing the genbank information for each gator window (i.e., locus_tags, start and end positions, annotations, and record lenght)
+     # ordered_window (Dict): A dictionary containing the windows (without the focal)  ordered for each gator focal window based on the gator focal scores
+     # ordered_window_w_f (Dict): A dictionary containing the windows (with the focal) ordered for each gator focal window based on the gator focal scores
+     # windows_identity (Dict): A dictionary containing the protein percent identity for each query window and hit window      
+     # directory_output (str): A string containing the path wanted to save the gator neighborhoods figures
+     # percentages (Dict): A dictionary containing the information about the conservation percentages for each gator focal window
+     # req_loci (List): A list containing required loci, used to define their color and label in the tracks
+     # opt_loci (List): A list containing optional loci, used to define their color and label in the tracks       
+    ## returns:
+     # None: It just make the gator neighborhood figures
+    for key, window_dict in windows.items():
+        gv = GenomeViz(
+        fig_width = 20,
+        fig_track_height = 0.5,
+        align_type = "center",
+        feature_track_ratio = 2.0,
+        link_track_ratio = 3.0,
+        tick_track_ratio = 1.0,
+        track_spines = False,
+        tick_style = "bar",
+        plot_size_thr = 0,
+        tick_labelsize = 15
+        )
+        hlog, strandf = gather_focal_hits(window_dict["loci_list"], all_hits)
+        track = gv.add_feature_track(window_dict["window"], window_dict["record_length"], labelmargin=0.03, linecolor="#333333", linewidth=2)
+        making_tracks(track, True, window_dict["loci_list"], percentages, req_loci, opt_loci)
+        print(window_dict["loci_list"])
+        flips = ['False']
+        for window_name in ordered_window[key]:
+            new_loci_list, flip = flip_windows_genbanks(hlog, strandf, windows[window_name]["record_length"], windows[window_name]["loci_list"])
+            flips.append(flip)
+            track2 = gv.add_feature_track(windows[window_name]["window"], windows[window_name]["record_length"], labelmargin=0.03,linecolor="#333333", linewidth=2)
+            #making_tracks(track2, False, windows[window_name]["loci_list"], percentages, req_loci, opt_loci)
+            #track2.set_sublabel(text='GFS:0.78', ymargin=1.5)
+            making_tracks(track2, False, new_loci_list, percentages, req_loci, opt_loci)
+        output_filepath = os.path.join(directory_output, f'{key[:-5]}_neighboorhoods.svg')
+        normal_color, inverted_color, alpha = "grey", "green", 0.5
+        for i in range(0, len(ordered_windows_w_focal[key])-1):
+            for item in windows_identity[ordered_windows_w_focal[key][i]][ordered_windows_w_focal[key][i+1]]:
+                link_data1 = (item['query_window'], item['query_start'], item['query_end'])
+                link_data2 = (item['hit_window'], item['hit_start'], item['hit_end'])
+                if i >= len(flips)-1:
+                    break
+                if flips[i] and i != 0:
+                    link_data1 = (item['query_window'], (item['record_length_query'] - item['query_end']), (item['record_length_query'] - item['query_start']))        
+                if flips[i+1]:
+                    link_data2 = (item['hit_window'], (item['record_length_hit'] - item['hit_end']), (item['record_length_hit'] - item['hit_start']))    
+                gv.add_link(link_data1, link_data2, normal_color, inverted_color, alpha, curve=True)
+        fig = gv.plotfig()
+        gv.set_colorbar(fig, bar_colors=["#7570B3ff", "#C87137ff", "#008423ff"], alpha=1, vmin=0, vmax=100, bar_height= 1.4/len(windows), bar_bottom=1, bar_label="Coservation", bar_labelsize=13)
+        fig.savefig(output_filepath, dpi=1200) 
+
 #################################################################################
 #################################################################################
 #################################################################################
@@ -717,9 +970,9 @@ final_window = checking_distance_bw_loci(req_hits_by_contig, all_required_protei
 
 ## generating Genbank files
 print("[5.2]" + print_datetime(), 'Generating Genbank Files for the Windows')
-generating_windows_genbanks(final_window, f"{args.out}/windows_genbanks")
+generating_windows_genbanks(final_window, req_hits_by_contig, opt_hits_by_contig, f"{args.out}/windows_genbanks")
 
-## making table for windows and optional hits                                                                                                                                            
+## making table for windows and optional hits                                                                                                                
 flattened_req_hits_by_contig, flattened_opt_hits_by_contig = making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv')
 
 ## making protein database for the windows
@@ -746,20 +999,36 @@ print("[10]" + print_datetime(), 'Calculating Gator Focal Scores (GFS) for All v
 calculating_gator_focal_scores(f"{args.out}/presence_absence", f"{args.out}/windows_genbanks/windows.tsv", f"{args.out}/gator_scores")
 
 ## concatening all gator forcal scores
-print("[11]" + print_datetime(), 'Concatening All GFS')
-concatenating_gator_focal_scores(f"{args.out}/gator_scores", f"{args.out}/concatenated_scores")
+if len(final_window) !=	1:
+    print("[11]" + print_datetime(), 'Concatening All GFS')
+    concatenating_gator_focal_scores(f"{args.out}/gator_scores", f"{args.out}/concatenated_scores")
 
 ## making the clustermap for the gator focal scores concatenate
-print("[12]" + print_datetime(), 'Generating the Clustermap for the GFS concatenate')
-generating_clustermap(f"{args.out}/concatenated_scores/concatenated_GFS.csv", f"{args.out}/concatenated_scores/clustermap_GFSs.svg")
+if len(final_window) !=	1:
+    print("[12]" + print_datetime(), 'Generating the Clustermap for the GFS concatenate')
+    generating_clustermap(f"{args.out}/concatenated_scores/concatenated_GFS.csv", f"{args.out}/concatenated_scores/clustermap_GFSs.svg")
 
 ## calculating locus conservation percentage
 percentages = calculating_gator_conservation_percentages(f"{args.out}/presence_absence")
 
-## making the gator conservation figures                                                                                                                     
+## making the gator conservation figures                                                                                                   
 print("[13]" + print_datetime(), 'Generating the Gator Conservation Figures')
-gator_conservation_plot(f"{args.out}/windows_genbanks/", flattened_req_hits_by_contig, flattened_opt_hits_by_contig, percentages, f"{args.out}/gator_conservation_plots")
+windows, req_loci, opt_loci = gator_conservation_plot(f"{args.out}/windows_genbanks/", flattened_req_hits_by_contig, flattened_opt_hits_by_contig, percentages, f"{args.out}/gator_conservation_plots")
 
+## ordering windows based on gator focal scores
+if len(final_window) != 1:
+    ordered_windows, ordered_windows_w_focal, ordering_windows_by_GFS = ordering_windows_by_GFSs(f"{args.out}/concatenated_scores/concatenated_GFS.csv")
+
+## parsing the percent identity of all vs all windpows
+if len(final_window) != 1:
+    windows_identity, all_hits = parsing_diamond_identity(dmnd_out_allvall.name)
+
+## making the window neithborhood figures
+if len(final_window) != 1:
+    print("[14]" + print_datetime(), 'Generating the Windows Neighborhoods Figures')
+    making_gator_windows_neighborhood_figures(windows, ordered_windows,  ordered_windows_w_focal, windows_identity,f"{args.out}/gator_conservation_plots", percentages, req_loci, opt_loci, ordering_windows_by_GFS)
+    
+    
 ## elapsed time
 etime = time.time()
 ftime = round((etime - stime) / 60, 2)
@@ -772,4 +1041,4 @@ else:
     ftime /= 60
     time_unit = "hours"
 
-print("[14]" + print_datetime(), f"Elapsed time: {ftime:.1f} {time_unit}")
+print("[15]" + print_datetime(), f"Elapsed time: {ftime:.1f} {time_unit}")
