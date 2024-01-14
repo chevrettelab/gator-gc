@@ -15,12 +15,13 @@ from datetime import datetime
 from typing import List, Set, Dict
 
 ## Define constants
+GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
 VERSION = 'v1.0.0'
 DESCRIPTION = """
-                                                                                                                                                                                               
+                                                                                                                                                                     
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /---                         
-   /--/ ---/--/ -------/ ----/ ---/--/ ---/ --/ ----/ ----/--------/ \----\                                                                                
+   /--/ ---/--/ -------/ ----/ ---/--/ ---/ --/ ----/ ----/--------/ \----\                                                                    
   ________   _____  __________________  __________         _________________                                                                                
  /  _____/  /  _  \ \__    ___/_____  \ \______   \       /  _____/\_   ___ \                                                                     
 /   \  ___ /  /_\  \  |    |   /   |   \ |       _/ _____    \  ___/    \  \/                     
@@ -30,8 +31,9 @@ DESCRIPTION = """
     -----\--\ -------\ ----\ ---\--\ ---\ --\ ------\ ----\---------\ /----                                                               
     \----/--/ -------/ ----/ ---/--/ ---/ --/ ------/ ----/---------/ \----/                                                                       
 
-GATOR-GC: Genomic Assesment Tool for Orthologous Regions and Gene Clusters                                                                               
-Authors: José D.D Cediel-Becerra, Valérie de Crécy-Lagard, Marc G. Chevrette                                                                               
+GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters                                                                               
+Developer: José D. D. Cediel-Becerra
+Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette                                                                               
 Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                               
 Please contact me at jcedielbecerra@ufl.edu if you have any questions                                                                                       
 Version: """+VERSION
@@ -73,7 +75,17 @@ def create_directory(directory_name: str) -> None:
         sys.stderr.write("ERROR: Failed to Make the "+directory_name+" Directory"+"\n")
         sys.stderr.write(str(e))
         sys.exit(1)
-
+        
+def replace_dashes_filenames_genomes_dir(genomes_dir):
+    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genomes_dir, geno_ext))]
+    for filepath in genbank_files:
+        filename = os.path.basename(filepath)
+        if '--' in filename:
+            new_filename = filename.replace('--', '_')
+            new_filepath = os.path.join(genomes_dir, new_filename)
+            os.rename(filepath, new_filepath)
+            print(f"Renamed file to avoid the '--' string: '{filepath}' to '{new_filepath}'")
+        
 def dbfaa_from_gb_dir(genomes_dir: str, db_faa: str) -> None:
     ## What function does:
      # Parse out protein sequences from GenBank files and writes them to a FASTA file.
@@ -82,8 +94,7 @@ def dbfaa_from_gb_dir(genomes_dir: str, db_faa: str) -> None:
      # db_faa (str): output file name for the generated FASTA file containing protein sequences that will become dmnd db.
     ## Returns:
      #  None  
-    genbank_extensions = ['*.gbk', '*.gbff', '*.gb']
-    genbank_files = [geno_file for geno_ext in genbank_extensions for geno_file in glob.glob(os.path.join(genomes_dir, geno_ext))]
+    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genomes_dir, geno_ext))]
     with open(db_faa, 'w') as out_fh:
         for file_path in genbank_files:
             if '--' in file_path:
@@ -155,6 +166,9 @@ args = parse_arguments()
 ## make output directory 
 create_directory(args.out)
 
+## replace dashes in filenames
+replace_dashes_filenames_genomes_dir(args.genomes_dir)
+                      
 ## making protein database 
 print("[2]" + print_datetime(), 'Generating the Protein Database')
 dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.proteins}')
