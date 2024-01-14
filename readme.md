@@ -1,5 +1,4 @@
 # GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
-================================================================
 
 ## Overview
 
@@ -13,7 +12,7 @@ GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC a
 - **Customizable Parameters:** Fine-tune search parameters (i.e., required/optional proteins, assembly with ALL required proteins, user-defined intergenic distance between required proteins ) to enhance specificity to define the GATOR windows
 - **GATOR Scores:** Novel score to compare GATOR windows with specific focal windows implementing an enzyme-aware scoring system 
 - **GATOR Conservation:** Gene cluster figure where the color of the genes are based on required and optional proteins, and their transparency depends on the  presence of the genes in the GATOR windows 
-- **GATOR Neighborhoods:** Genomic neighborhoods containing all the GATOR windows, which are sorted based on the GATOR scores. Each GATOR window will have a neighborhood figure. Homology bewtween genes are ilustrated by a gray bar. 
+- **GATOR Neighborhoods:** Genomic neighborhoods containing all the GATOR windows, which are sorted based on the GATOR scores. Each GATOR window will have a neighborhood figure. Homology between genes are ilustrated by a gray bar. 
 
 ## Authors
 
