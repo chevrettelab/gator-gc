@@ -22,3 +22,30 @@ GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC a
 - **GATOR Conservation:** Gene cluster figure where the color of the genes are based on required and optional proteins, and their transparency depends on the  presence of the genes in the GATOR windows 
 - **GATOR Neighborhoods:** Genomic neighborhoods containing all the GATOR windows, which are sorted based on the GATOR scores. Each GATOR window will have a neighborhood figure. Homology between genes are ilustrated by a gray bar. 
 
+## Usage
+
+```
+gator-gc --required req.faa --optional opt.faa --genomes_dir my_genomes/ --proteins my_proteins.faa --dmnd_database my_dmnd_database.dmnd --modular_domtblout my_modular_domtblout.txt --intergenic_distance 86 --window_extension 10 --out my_folder_output
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --required REQUIRED   Query protein fasta file containing required proteins.
+  --optional OPTIONAL   Query protein fasta file containing optional proteins.
+  --genomes_dir GENOMES_DIR
+                        Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
+  --proteins PROTEINS   Precompiled protein database (.faa) of genomes_dir to search against.
+  --dmnd_database DMND_DATABASE
+                        Precompiled diamond database (.dnmd) to search against.
+  --modular_domtblout MODULAR_DOMTBLOUT
+                        Precomputed hmmsearch domain table for modular domains against the precompiled protein database.
+  --threads THREADS     CPUs wanted for diamond search and hmmsearch (default: all CPUs available).
+  --query_cover QUERY_COVER
+                        Protein percent query cover for diamond search (default: 70).
+  --identity IDENTITY   Protein percent identity for diamond search (default: 35).
+  --e_value E_VALUE     E-value threshold  wanted for hmmsearch (default: 1e-4).
+  --intergenic_distance INTERGENIC_DISTANCE
+                        Distance in kilobases between required genes (default: 86 kb)
+  --window_extension WINDOW_EXTENSION
+                        Extension in kilobases from the start and end positions of the windows (default: 10 kb)
+  --out OUT             Output directory name that will have GATOR-GC results
+```
