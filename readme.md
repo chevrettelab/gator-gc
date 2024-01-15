@@ -72,3 +72,8 @@ optional arguments:
 ```
 python pre-gator-gc.py --genomes_dir example/genomes/ --proteins proteins.faa --dmnd_database database.dmnd --modular_domtblout modular.domtblout --threads 4 --out example/pre_gator_data
 ```
+
+```
+python gator-gc.py --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins example/pre_gator_data/proteins.faa --dmnd_database example/pre_gator_data/database.dmnd --modular_domtblout example/pre_gator_data/modular.domtblout --threads 5 --out example/prodigiosin 
+```
+```
