@@ -23,6 +23,23 @@ GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC a
 - **GATOR Neighborhoods:** Genomic neighborhoods containing all the GATOR windows, which are sorted based on the GATOR scores. Each GATOR window will have a neighborhood figure. Homology between genes are ilustrated by a gray bar. 
 
 ## Usage
+Before using GATOR-GC, we need run PRE-GATOR-GC in order to get the proteins, dmnd database and the modular domtblout.
+
+```
+pre-gator-gc --genomes_dir /my_genomes --proteins name_for_proteins.faa --dmnd_database name_for_dmnd_database.dmnd --modular_domtblout name_for_modular_domtblout.txt --e_value 1e-4 --out my_output_folder
+optional arguments:
+  -h, --help            show this help message and exit
+  --genomes_dir GENOMES_DIR
+                        Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
+  --proteins PROTEINS   Name for the precompiled protein database (.faa) of genomes_dir.
+  --dmnd_database DMND_DATABASE
+                        Name for the precompiled diamond database (.dnmd).
+  --e_value E_VALUE     E-value threshold  wanted for hmmsearch (default: 1e-4).
+  --modular_domtblout MODULAR_DOMTBLOUT
+                        Name for the precomputed hmmsearch domain table for modular domains
+  --threads THREADS     CPUs wanted for hmmsearch (default: all available).
+  --out OUT             Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.
+``` 
 
 ```
 gator-gc --required req.faa --optional opt.faa --genomes_dir my_genomes/ --proteins my_proteins.faa --dmnd_database my_dmnd_database.dmnd --modular_domtblout my_modular_domtblout.txt --intergenic_distance 86 --window_extension 10 --out my_folder_output
