@@ -1,5 +1,5 @@
 # GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
-![image](https://www.dropbox.com/scl/fi/1chefmk1vjt4pllyokmqg/gator_gc_logo.jpg?rlkey=1vr0mvivuoy22wm6c1i3zytsp&dl=0)
+<img src="images/gator_gc_logo.jpg">
 
 ## Overview
 
