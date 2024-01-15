@@ -66,3 +66,9 @@ optional arguments:
                         Extension in kilobases from the start and end positions of the windows (default: 10 kb)
   --out OUT             Output directory name that will have GATOR-GC results
 ```
+
+## Example 
+
+```
+python pre-gator-gc.py --genomes_dir example/genomes/ --proteins proteins.faa --dmnd_database database.dmnd --modular_domtblout modular.domtblout --threads 4 --out example/pre_gator_data
+```
