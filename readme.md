@@ -69,7 +69,7 @@ optional arguments:
 
 ## Example
 
-Let's explore an example involving the enzymes responsible for the production of prodigiosin and prodigiosin-like compounds, categorizing them as required and optional. Subsequently, we will define the taxonomic scope of the search, focusing  on a couple genomes from Streptomyces, Serratia, Pseudoalteromonas, and Hallela.
+Let's explore an example involving the enzymes responsible for the production of prodigiosin and prodigiosin-like compounds, categorizing them as required and optional. Subsequently, we will define the taxonomic scope of the search, focusing  on a couple genomes from *Streptomyces*, *Serratia*, *Pseudoalteromonas*, and *Hallela*.
 The inital step involves using PRE-GATOR-GC to build the protein database. This includes making the Diamond database and creating the modular domains domtblout table (NRPS/PKS/Hybrids from the whole genomes using the modular profiles used by antiSMASH). We can do this as simple as this command line arguments:   
 
 ```
