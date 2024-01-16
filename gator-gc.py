@@ -287,8 +287,8 @@ def grouping_user_req_opt_proteins_by_contig(protein_dict: Dict, query_type: str
     hits_by_contig = {}
     all_required_proteins = set()
     for query_proteins in protein_dict:
-        if 'query_type' not in protein_dict[query_proteins]:
-            print(query_proteins)
+        #if 'query_type' not in protein_dict[query_proteins]:
+        #print(query_proteins)
         if protein_dict[query_proteins]['query_type'] == query_type:
             all_required_proteins.add(query_proteins)
             for hit in protein_dict[query_proteins]['hit']:
@@ -807,12 +807,12 @@ def parsing_diamond_identity(dmnd_out: str) -> Dict:
     return windows_identity, all_hits
 
 def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
-    ## What function does                                                                                                                                                   
+    ## What function does                                                                                                                                         
      # make a list of required focal hits
-    ## Arguments:                                                                                                                                                               
+    ## Arguments:                                                                                                                                                 
      # loci_list_focal (List): a list containing all the information about the proteins for the focal windows
      # all_hits (Dict): a dictionary containing all the protein diamond alignment hits in a nested dicionary for each protein     
-    ## returns:                                                                                                                                                                 
+    ## returns:
      # Tuple: a list containing focal hits and the strand string for the focal window
     for i, cds_focal in enumerate(loci_list_focal, 1):
         startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf = cds_focal
@@ -821,13 +821,13 @@ def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
             return (hlog, strandf)
 
 def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
-    ## What function does                                                                                                                                                   
+    ## What function does
      # Update the strand, and loci positions for the non-focal windows if strand for the first focal required protein is different than the one in the non-focal window
-    ## Arguments:                                                                                                                                                               
+    ## Arguments:
      # hlog (List): a list containing focal hits
      # strandf (str): a string containing the strand for the focal window
      # loci_list_no_focal (List): a list containing all the information about the proteins for the non-focal windows   
-    ## returns:                                                                                                                                                                 
+    ## returns:
      # Tuple: a list containing the information about the proteins for the non-focal windows and a string for the boolean decision for flip condition.
     flip = False
     for i, cds_no_focal in enumerate(loci_list_no_focal, 1):
@@ -878,7 +878,7 @@ def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dic
         hlog, strandf = gather_focal_hits(window_dict["loci_list"], all_hits)
         track = gv.add_feature_track(window_dict["window"], window_dict["record_length"], labelmargin=0.03, linecolor="#333333", linewidth=2)
         making_tracks(track, True, window_dict["loci_list"], percentages, req_loci, opt_loci)
-        print(window_dict["loci_list"])
+        #print(window_dict["loci_list"])
         flips = ['False']
         for window_name in ordered_window[key]:
             new_loci_list, flip = flip_windows_genbanks(hlog, strandf, windows[window_name]["record_length"], windows[window_name]["loci_list"])
@@ -887,6 +887,7 @@ def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dic
             #making_tracks(track2, False, windows[window_name]["loci_list"], percentages, req_loci, opt_loci)
             #track2.set_sublabel(text='GFS:0.78', ymargin=1.5)
             making_tracks(track2, False, new_loci_list, percentages, req_loci, opt_loci)
+        os.makedirs(directory_output, exist_ok=True)
         output_filepath = os.path.join(directory_output, f'{key[:-5]}_neighboorhoods.svg')
         normal_color, inverted_color, alpha = "grey", "green", 0.5
         for i in range(0, len(ordered_windows_w_focal[key])-1):
@@ -1026,7 +1027,7 @@ if len(final_window) != 1:
 ## making the window neithborhood figures
 if len(final_window) != 1:
     print("[14]" + print_datetime(), 'Generating the Windows Neighborhoods Figures')
-    making_gator_windows_neighborhood_figures(windows, ordered_windows,  ordered_windows_w_focal, windows_identity,f"{args.out}/gator_conservation_plots", percentages, req_loci, opt_loci, ordering_windows_by_GFS)
+    making_gator_windows_neighborhood_figures(windows, ordered_windows,  ordered_windows_w_focal, windows_identity,f"{args.out}/gator_neighborhoods_plots", percentages, req_loci, opt_loci, ordering_windows_by_GFS)
     
     
 ## elapsed time
