@@ -67,13 +67,14 @@ optional arguments:
   --out OUT             Output directory name that will have GATOR-GC results
 ```
 
-## Example 
+## Example
 
-```
-python pre-gator-gc.py --genomes_dir example/genomes/ --proteins proteins.faa --dmnd_database database.dmnd --modular_domtblout modular.domtblout --threads 4 --out example/pre_gator_data
-```
+Let's explore an example involving the enzymes responsible for the production of prodigiosin and prodigiosin-like compounds, categorizing them as required and optional. Subsequently, we will define the taxonomic scope of the search, focusing  on a couple genomes from Streptomyces, Serratia, Pseudoalteromonas, and Hallela.
+The inital step involves using PRE-GATOR-GC to build the protein database. This includes making the Diamond database and creating the modular domains domtblout table (NRPS/PKS/Hybrids from the whole genomes using the modular profiles used by antiSMASH). We can do this as simple as this command line arguments:   
 
-```
-python gator-gc.py --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins example/pre_gator_data/proteins.faa --dmnd_database example/pre_gator_data/database.dmnd --modular_domtblout example/pre_gator_data/modular.domtblout --threads 5 --out example/prodigiosin 
-```
-```
+`python pre-gator-gc.py --genomes_dir example/genomes/ --proteins proteins.faa --dmnd_database database.dmnd --modular_domtblout modular.domtblout --threads 4 --out example/pre_gator_data`
+
+With this foundation in place, we can proceed to use GATOR-GC to search gene clusters (a.k.a GATOR windows) harboring the wanted genes. We can do it running this arguments:
+
+`python gator-gc.py --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins example/pre_gator_data/proteins.faa --dmnd_database example/pre_gator_data/database.dmnd --modular_domtblout example/pre_gator_data/modular.domtblout --threads 5 --out example/prodigiosin`
+
