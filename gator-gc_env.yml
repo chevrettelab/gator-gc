@@ -1,16 +1,16 @@
-name:  GATOR-GC
+name: gator-gc
 channels:
   - conda-forge
   - defaults
   - bioconda
 dependencies:
-  - python=3.9.16.
-  - pandas=1.5.0.
-  - numpy=1.24.2.
-  - seaborn=0.12.2.
-  - matplotlib=3.8.0.
-  - scipy=1.10.1.
-  - pygenomeviz=0.4.4.
-  - biopython=1.81.
-  - pip=23.0.
-
+  - python=3.9.16
+  - pandas=1.5.0
+  - numpy=1.24.2
+  - seaborn=0.12.2
+  - matplotlib=3.8.0
+  - scipy=1.10.1
+  - pygenomeviz=0.4.4
+  - biopython=1.81
+  - pip=23.0
+  - HMMER=3.3.2
