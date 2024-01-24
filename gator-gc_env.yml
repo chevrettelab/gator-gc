@@ -14,3 +14,4 @@ dependencies:
   - biopython=1.81
   - pip=23.0
   - HMMER=3.3.2
+  - diamond=2.1.6
