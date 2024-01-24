@@ -370,6 +370,12 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
             for rec in SeqIO.parse(gf, 'genbank'):
                 if rec.id == contig:
                     record_to_write = rec
+                    for feat in rec.features:
+                        if feat.type == "CDS":
+                            if feat.location.start <= (0 + 500) or feat.location.end >= (len(rec) - 500):
+                                feat.qualifiers["contig_edge"] = ["true"]
+                            else:
+                                feat.qualifiers["contig_edge"] = ["false"] 
                     if max_end > len(record_to_write):
                         max_end = len(record_to_write)
                     sub_seq = record_to_write[min_start:max_end]
@@ -380,10 +386,6 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
                             feat.qualifiers["gator_nrps"] = ["false"]
                             feat.qualifiers["gator_pks"] = ["false"]
                             feat.qualifiers["gator_hit"] = ["na"]
-                            if feat.location.start <= (0 + 500) or feat.location.end >= (len(sub_seq) - 500):
-                                feat.qualifiers["contig_edge"] = ["true"]
-                            else:
-                                feat.qualifiers["contig_edge"] = ["false"]
                             for key in req_hits_by_contig:
                                 for item in req_hits_by_contig[key]:
                                     if feat.qualifiers["locus_tag"][0] == item["locus"]:
@@ -653,7 +655,7 @@ def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict,
     ## Returns:
      # None: It just generates the tracks
     for index, cds_tuple in enumerate(loci_list, 1):
-        start, end, strand, locus, annotation, gator_query, gator_nrps, gator_pks, gator_hit = cds_tuple
+        start, end, strand, locus, annotation, gator_query, gator_nrps, gator_pks, gator_hit, contig_edge = cds_tuple
         opacity = 0
         for inner in percentages.values():
             if locus in inner:
@@ -686,7 +688,13 @@ def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict,
             color = '#008423' + alpha
             label = ''
         track.add_feature(start, end, strand, facecolor="white")
-        track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=15, linewidth=1.5, labelvpos="top")
+        if contig_edge == "true":
+            edgecolor="gray"
+            #patch_kws=dict(hatch="/")
+        else:
+            edgecolor="black"
+            #patch_kws=None
+        track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=15, linewidth=1.5, labelvpos="top", edgecolor=edgecolor)
         
 def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List, flattened_opt_hits_by_contig: List, percentages: Dict, directory_output: str) -> None:
     ## What function does
@@ -718,7 +726,8 @@ def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List
                                       feat.qualifiers['gator_query'][0],
                                       feat.qualifiers['gator_nrps'][0],
                                       feat.qualifiers['gator_pks'][0],
-                                      feat.qualifiers['gator_hit'][0]))
+                                      feat.qualifiers['gator_hit'][0],
+                                      feat.qualifiers['contig_edge'][0]))
         windows[window_gbff] = {'window': window, 'record_length': len(rec), 'loci_list': loci_list}
         gv = GenomeViz(
             fig_width = 20,
@@ -815,7 +824,7 @@ def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
     ## returns:
      # Tuple: a list containing focal hits and the strand string for the focal window
     for i, cds_focal in enumerate(loci_list_focal, 1):
-        startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf = cds_focal
+        startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
         if gqueryf == 'req':
             hlog = all_hits[locusf].keys()
             return (hlog, strandf)
@@ -831,7 +840,7 @@ def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
      # Tuple: a list containing the information about the proteins for the non-focal windows and a string for the boolean decision for flip condition.
     flip = False
     for i, cds_no_focal in enumerate(loci_list_no_focal, 1):
-        startn, endn, strandn, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn = cds_no_focal
+        startn, endn, strandn, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn, contig_edge = cds_no_focal
         if locusn in hlog:
             if strandf != strandn:
                 flip = True
@@ -839,11 +848,11 @@ def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
     if flip:
         new_loci_list = []
         for i, cds_no_focal in enumerate(loci_list_no_focal, 1):
-            startn, endn, strandn, locusn, productn, gqueryn, gnrpsn , gpksn, ghitn = cds_no_focal
+            startn, endn, strandn, locusn, productn, gqueryn, gnrpsn , gpksn, ghitn, contig_edge = cds_no_focal
             nstrand = strandn * -1
             nstartn = record_length - endn
             nendn = record_length - startn
-            new_loci_list.append((nstartn, nendn, nstrand, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn))
+            new_loci_list.append((nstartn, nendn, nstrand, locusn, productn, gqueryn, gnrpsn, gpksn, ghitn, contig_edge))
         return new_loci_list, flip
     else:
         return loci_list_no_focal, flip
@@ -885,7 +894,7 @@ def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dic
             flips.append(flip)
             track2 = gv.add_feature_track(windows[window_name]["window"], windows[window_name]["record_length"], labelmargin=0.03,linecolor="#333333", linewidth=2)
             #making_tracks(track2, False, windows[window_name]["loci_list"], percentages, req_loci, opt_loci)
-            #track2.set_sublabel(text='GFS:0.78', ymargin=1.5)
+            #track2.set_sublabel('GFS:0.78', ymargin=0.6, size=10.0)
             making_tracks(track2, False, new_loci_list, percentages, req_loci, opt_loci)
         os.makedirs(directory_output, exist_ok=True)
         output_filepath = os.path.join(directory_output, f'{key[:-5]}_neighboorhoods.svg')
