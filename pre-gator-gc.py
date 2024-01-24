@@ -44,10 +44,7 @@ stime = time.time()
 def parse_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--genomes_dir', type=str, help='Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
-    parser.add_argument('--proteins', type=str, help='Name for the precompiled protein database (.faa) of genomes_dir.', required=True)
-    parser.add_argument('--dmnd_database', type=str, help='Name for the precompiled diamond database (.dnmd).', required=True)
     parser.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)    
-    parser.add_argument('--modular_domtblout', type=str, help='Name for the precomputed hmmsearch domain table for modular domains', required=True)
     parser.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for hmmsearch (default: all available).', required=False)
     parser.add_argument('--out', type=str, help='Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.', required=True)
     return parser.parse_args()
@@ -171,15 +168,19 @@ replace_dashes_filenames_genomes_dir(args.genomes_dir)
                       
 ## making protein database 
 print("[2]" + print_datetime(), 'Generating the Protein Database')
-dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.proteins}')
+#dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.proteins}')
+dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.out}.faa')
 
 ## making diamond database 
 print("[3]" + print_datetime(), 'Generating the Diamond  Database')
-create_diamond_database(f'{args.out}/{args.proteins}', f'{args.out}/{args.dmnd_database}') 
+#create_diamond_database(f'{args.out}/{args.proteins}', f'{args.out}/{args.dmnd_database}')
+create_diamond_database(f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.dmnd')
+
 
 ## running hmmsearch
 print("[4]" + print_datetime(), 'Making the Modular Domtblout Table for the Protein Database') 
-run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.proteins}', f'{args.out}/{args.modular_domtblout}', args.threads, args.e_value)
+#run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.proteins}', f'{args.out}/{args.modular_domtblout}', args.threads, args.e_value)
+run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.domtblout', args.threads, args.e_value)
 
 ## elapsed time 
 etime = time.time()
