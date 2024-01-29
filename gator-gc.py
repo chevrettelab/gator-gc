@@ -68,21 +68,24 @@ plt.rcParams['font.family'] = 'Arial'
 
 stime = time.time()
 
-def parse_arguments():
+def parse_gator_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--required', type=str, help='Query protein fasta file containing required proteins.', required=True)
-    parser.add_argument('--optional', type=str, help='Query protein fasta file containing optional proteins.', required=False)
-    parser.add_argument('--genomes_dir', type=str, help='Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
-    parser.add_argument('--proteins', type=str, help='Precompiled protein database (.faa) of genomes_dir to search against.', required=True)
-    parser.add_argument('--dmnd_database', type=str, help='Precompiled diamond database (.dnmd) to search against.', required=True)
-    parser.add_argument('--modular_domtblout', type=str, help='Precomputed hmmsearch domain table for modular domains against the precompiled protein database.', required=True)
-    parser.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for diamond search and hmmsearch (default: all CPUs available).', required=False)
-    parser.add_argument('--query_cover', type=int, default=70,help='Protein percent query cover for diamond search (default: 70).', required=False)
-    parser.add_argument('--identity', type=int, default=35, help='Protein percent identity for diamond search (default: 35).', required=False)
-    parser.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)
-    parser.add_argument('--intergenic_distance', type=int, default=86, help='Distance in kilobases between required genes (default: 86 kb)', required=False)
-    parser.add_argument('--window_extension', type=int, default=10, help='Extension in kilobases from the start and end positions of the windows (default: 10 kb)', required=False)
-    parser.add_argument('--out', type=str, help='Output directory name that will have GATOR-GC results', required=True)
+    input_group = parser.add_argument_group("Input Options")
+    alignment_group = parser.add_argument_group("Diamond Options")
+    hmmer_group = parser.add_argument_group("HMMER Options")
+    gator_group = parser.add_argument_group("GATOR-GC Options")
+    out_group = parser.add_argument_group("Output Options")
+    input_group.add_argument('--required', type=str, help='Query protein fasta file containing required proteins.', required=True)
+    input_group.add_argument('--optional', type=str, help='Query protein fasta file containing optional proteins.', required=False)
+    input_group.add_argument('--genomes_dir', type=str, nargs='+', help='Directory containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
+    input_group.add_argument('--gator_databases', type=str, help='Folder containing the pre-gator-gc databases (.faa and .domtblout', required=True)
+    alignment_group.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for diamond search and hmmsearch (default: all CPUs available).', required=False)
+    alignment_group.add_argument('--query_cover', type=int, default=70,help='Protein percent query cover for diamond search (default: 70).', required=False)
+    alignment_group.add_argument('--identity', type=int, default=35, help='Protein percent identity for diamond search (default: 35).', required=False)
+    hmmer_group.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)
+    gator_group.add_argument('--intergenic_distance', type=int, default=86, help='Distance in kilobases between required genes (default: 86 kb)', required=False)
+    gator_group.add_argument('--window_extension', type=int, default=10, help='Extension in kilobases from the start and end positions of the windows (default: 10 kb)', required=False)
+    out_group.add_argument('--out', type=str, help='Output directory name that will have GATOR-GC results', required=True)
     return parser.parse_args()
 
 def print_datetime():
@@ -201,6 +204,13 @@ def parse_modular_domain_query_hits(modular_domain_hit: Dict, protein_dict: Dict
         if PKS.issubset(modular_domain_hit[query_protein]):
             protein_dict[query_protein]['is_pks'] = True
     return protein_dict
+
+def get_dmnd_domtblout_paths(gator_databases):
+    dmnd_ = glob.glob(os.path.join(gator_databases, '*.dmnd'))
+    dmnd_database = dmnd_[0]
+    domtblout_ = glob.glob(os.path.join(gator_databases, '*.domtblout'))
+    domtblout_database = domtblout_[0]
+    return dmnd_database, domtblout_database
 
 def parse_modular_domain_genome_hits(modular_domain_hit: Dict, protein_dict: Dict) -> Dict:
     ## What function does:
@@ -347,7 +357,22 @@ def checking_distance_bw_loci(req_hits_by_contig: Dict, all_required_proteins: S
         sys.exit(1)
     return final_window
 
-def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Dict, opt_hits_by_contig: Dict, output_directory: str) -> None:
+def get_list_genomes(genomes_dir):
+    gfiles = []
+    for pattern in genomes_dir:
+        dir_pattern, file_pattern = os.path.split(pattern)
+        if not file_pattern:
+            for geno_ext in GENBANK_EXTENSIONS:
+                dirs = glob.glob(dir_pattern)
+                for dirg in dirs:
+                    gfiles.extend(glob.glob(os.path.join(dirg, geno_ext)))
+        else:
+            dirs = glob.glob(dir_pattern)
+            for dirg in dirs:
+                gfiles.extend(glob.glob(os.path.join(dirg, file_pattern)))
+    return gfiles
+
+def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Dict, opt_hits_by_contig: Dict, genomes_list: List, output_directory: str) -> None:
     ## What function does:
      # Generates the Genbank files for the windows found
     ## Arguments:
@@ -366,56 +391,82 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
         min_start, max_end = (min(start_positions) - (args.window_extension * 1000)), (max(end_positions) + (args.window_extension * 1000))
         if min_start < 0:
             min_start = 0
-        with open(args.genomes_dir + genome, 'r') as gf: 
-            for rec in SeqIO.parse(gf, 'genbank'):
-                if rec.id == contig:
-                    record_to_write = rec
-                    for feat in rec.features:
-                        if feat.type == "CDS":
-                            if feat.location.start <= (0 + 500) or feat.location.end >= (len(rec) - 500):
-                                feat.qualifiers["contig_edge"] = ["true"]
-                            else:
-                                feat.qualifiers["contig_edge"] = ["false"] 
-                    if max_end > len(record_to_write):
-                        max_end = len(record_to_write)
-                    sub_seq = record_to_write[min_start:max_end]
-                    sub_seq.annotations["molecule_type"] = "DNA"
-                    for feat in sub_seq.features:
-                        if feat.type == "CDS":
-                            feat.qualifiers["gator_query"] = ["na"]
-                            feat.qualifiers["gator_nrps"] = ["false"]
-                            feat.qualifiers["gator_pks"] = ["false"]
-                            feat.qualifiers["gator_hit"] = ["na"]
-                            for key in req_hits_by_contig:
-                                for item in req_hits_by_contig[key]:
-                                    if feat.qualifiers["locus_tag"][0] == item["locus"]:
-                                        feat.qualifiers["gator_query"] = item["query_type"]
-                                        if item["is_nrps"]:
-                                            feat.qualifiers["gator_nrps"] = ["true"]
-                                        elif item["is_pks"]:
-                                            feat.qualifiers["gator_pks"] = ["true"]
-                                        else:
-                                            feat.qualifiers["gator_hit"] = [item["query_protein"]]
+        #for directory in args.genomes_dir:
+            #list_genomes = os.listdir(directory)
+        for full_path_genomes in genomes_list:
+            filename = os.path.basename(full_path_genomes)
+            if genome in filename:
+                #file_path = os.path.join(directory, genome)
+                with open(full_path_genomes, 'r') as gf: 
+                    for rec in SeqIO.parse(gf, 'genbank'):
+                        if rec.id == contig:
+                            record_to_write = rec
+                            for feat in rec.features:
+                                if feat.type == "CDS":
+                                    if feat.location.start <= (0 + 500) or feat.location.end >= (len(rec) - 500):
+                                        feat.qualifiers["contig_edge"] = ["true"]
+                                    else:
+                                        feat.qualifiers["contig_edge"] = ["false"] 
+                            if max_end > len(record_to_write):
+                                max_end = len(record_to_write)
+                            sub_seq = record_to_write[min_start:max_end]
+                            sub_seq.annotations["molecule_type"] = "DNA"
+                            for feat in sub_seq.features:
+                                if feat.type == "CDS":
+                                    feat.qualifiers["gator_query"] = ["na"]
+                                    feat.qualifiers["gator_nrps"] = ["false"]
+                                    feat.qualifiers["gator_pks"] = ["false"]
+                                    feat.qualifiers["gator_hit"] = ["na"]
+                                    for key in req_hits_by_contig:
+                                        for item in req_hits_by_contig[key]:
+                                            if "locus_tag" in feat.qualifiers:
+                                                if feat.qualifiers["locus_tag"][0] == item["locus"]:
+                                                    feat.qualifiers["gator_query"] = item["query_type"]
+                                                    if item["is_nrps"]:
+                                                        feat.qualifiers["gator_nrps"] = ["true"]
+                                                    elif item["is_pks"]:
+                                                        feat.qualifiers["gator_pks"] = ["true"]
+                                                    else:
+                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
+                                            elif "protein_id" in feat.qualifiers:
+                                                if feat.qualifiers["protein_id"][0] == item["locus"]:
+                                                    feat.qualifiers["gator_query"] = item["query_type"]
+                                                    if item["is_nrps"]:
+                                                        feat.qualifiers["gator_nrps"] = ["true"]
+                                                    elif item["is_pks"]:
+                                                        feat.qualifiers["gator_pks"] = ["true"]
+                                                    else:
+                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
                                                                         
-                            for	key in opt_hits_by_contig:
-                                for item in opt_hits_by_contig[key]:
-                                    if feat.qualifiers["locus_tag"][0] == item["locus"]:
-                                        feat.qualifiers["gator_query"] = item["query_type"]
-                                        if item["is_nrps"]:
-                                            feat.qualifiers["gator_nrps"] = ["true"]
-                                        elif item["is_pks"]:
-                                            feat.qualifiers["gator_pks"] = ["true"]
-                                        else:
-                                            feat.qualifiers["gator_hit"] = [item["query_protein"]]
+                                    for	key in opt_hits_by_contig:
+                                        for item in opt_hits_by_contig[key]:
+                                            if "locus_tag" in feat.qualifiers:
+                                                if feat.qualifiers["locus_tag"][0] == item["locus"]:
+                                                    feat.qualifiers["gator_query"] = item["query_type"]
+                                                    if item["is_nrps"]:
+                                                        feat.qualifiers["gator_nrps"] = ["true"]
+                                                    elif item["is_pks"]:
+                                                        feat.qualifiers["gator_pks"] = ["true"]
+                                                    else:
+                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
+                                            elif "protein_id" in feat.qualifiers:
+                                                if feat.qualifiers["protein_id"][0] == item["locus"]:
+                                                    feat.qualifiers["gator_query"] = item["query_type"]                                    
+                                                    if item["is_nrps"]:
+                                                        feat.qualifiers["gator_nrps"] = ["true"]
+                                                    elif item["is_pks"]:
+                                                        feat.qualifiers["gator_pks"] = ["true"]
+                                                    else:
+                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
                                                 
-        os.makedirs(output_directory, exist_ok=True)
-        basename, extension = os.path.splitext(os.path.basename(genome))
-        file_name = f"window_{window_count}--{basename}.gbff"
-        output_file = os.path.join(output_directory, file_name)
-        with open(output_file, 'w') as outf:
-            ### return sub_seq to save everything we need, and the window_count
-            SeqIO.write(sub_seq, outf, 'genbank')
-        window_count += 1
+                os.makedirs(output_directory, exist_ok=True)
+                basename, extension = os.path.splitext(os.path.basename(genome))
+                file_name = f"window_{window_count}--{basename}.gbff"
+                output_file = os.path.join(output_directory, file_name)
+                with open(output_file, 'w') as outf:
+                    ### return sub_seq to save everything we need, and the window_count
+                    SeqIO.write(sub_seq, outf, 'genbank')
+                window_count += 1
 
 def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict, opt_hits_by_contig: Dict, windows_tsv: str) -> List:
     ## What function does:
@@ -437,8 +488,12 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
         for rec in SeqIO.parse(file_path, 'genbank'):
             for feat in rec.features:
                 if feat.type == 'CDS':
-                    final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
-                                                   'window': num_window})
+                    if "locus_tag" in feat.qualifiers:
+                        final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
+                                                       'window': num_window})
+                    elif "protein_id" in feat.qualifiers:
+                        final_window_extension.append({'locus': feat.qualifiers['protein_id'][0],
+                                                       'window': num_window})
     for req_opt_hits in req_opt_hits_list:
         for window_req_opt_hits in final_window_extension:
             if req_opt_hits['locus'] == window_req_opt_hits['locus']:
@@ -486,6 +541,8 @@ def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
                             name, seq = None, None
                             if 'locus_tag' in feat.qualifiers:
                                 name = "|-|".join([genome, feat.qualifiers['locus_tag'][0], window, str(int(feat.location.start)), str(int(feat.location.end)), feat.qualifiers['contig_edge'][0], str(int(len(rec)))])
+                            elif 'protein_id' in feat.qualifiers:
+                                name = "|-|".join([genome, feat.qualifiers['protein_id'][0], window, str(int(feat.location.start)), str(int(feat.location.end)), feat.qualifiers['contig_edge'][0], str(int(len(rec)))])
                             if 'translation' in feat.qualifiers:
                                 seq = feat.qualifiers['translation'][0]
                             if name is not None and seq is not None:
@@ -667,7 +724,7 @@ def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict,
             if gator_hit != 'na':
                 label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
             else:
-                if gator_nrps and gator_pks == 'true':
+                if gator_nrps == 'true' and gator_pks == 'true':
                     label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
                 elif gator_nrps == 'true':
                     label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
@@ -678,7 +735,7 @@ def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict,
             if gator_hit != 'na':
                 label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
             else:
-                if gator_nrps and gator_pks == 'true':
+                if gator_nrps == 'true' and gator_pks == 'true':
                     label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
                 elif gator_nrps == 'true':
                     label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
@@ -718,16 +775,28 @@ def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List
         for rec in SeqIO.parse(file_path, 'genbank'):
             for feat in rec.features:
                 if feat.type == 'CDS':
-                    loci_list.append((int(feat.location.start),
-                                      int(feat.location.end),
-                                      feat.location.strand,
-                                      feat.qualifiers['locus_tag'][0],
-                                      feat.qualifiers.get('product', ['no_annotation'])[0],
-                                      feat.qualifiers['gator_query'][0],
-                                      feat.qualifiers['gator_nrps'][0],
-                                      feat.qualifiers['gator_pks'][0],
-                                      feat.qualifiers['gator_hit'][0],
-                                      feat.qualifiers['contig_edge'][0]))
+                    if "locus_tag" in feat.qualifiers:
+                        loci_list.append((int(feat.location.start),
+                                          int(feat.location.end),
+                                          feat.location.strand,
+                                          feat.qualifiers['locus_tag'][0],
+                                          feat.qualifiers.get('product', ['no_annotation'])[0],
+                                          feat.qualifiers['gator_query'][0],
+                                          feat.qualifiers['gator_nrps'][0],
+                                          feat.qualifiers['gator_pks'][0],
+                                          feat.qualifiers['gator_hit'][0],
+                                          feat.qualifiers['contig_edge'][0]))
+                    elif "protein_id" in feat.qualifiers:
+                        loci_list.append((int(feat.location.start),
+                                          int(feat.location.end),
+                                          feat.location.strand,
+                                          feat.qualifiers['protein_id'][0],
+                                          feat.qualifiers.get('product', ['no_annotation'])[0],
+                                          feat.qualifiers['gator_query'][0],
+                                          feat.qualifiers['gator_nrps'][0],
+                                          feat.qualifiers['gator_pks'][0],
+                                          feat.qualifiers['gator_hit'][0],
+                                          feat.qualifiers['contig_edge'][0]))
         windows[window_gbff] = {'window': window, 'record_length': len(rec), 'loci_list': loci_list}
         gv = GenomeViz(
             fig_width = 20,
@@ -925,7 +994,7 @@ def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dic
 print(DESCRIPTION)
 
 ## Parse arguments
-args = parse_arguments()
+args = parse_gator_arguments()
 
 ## Make output directory
 create_directory(args.out)
@@ -957,15 +1026,18 @@ for header in q:
         nonmodular_queries.write('>'+header+"\n"+q[header]['seq']+"\n")
 nonmodular_queries.close()
 
+## Getting paths for gator databases
+dmnd_database, domtblout_database = get_dmnd_domtblout_paths(args.gator_databases)
+
 ## parse genome modular search
-modular_domain_hit = parse_modular_domtblout(args.modular_domtblout, q)
+modular_domain_hit = parse_modular_domtblout(domtblout_database, q)
 print("[3]" + print_datetime(), 'Parsing  Modular Domains from the Genomes Database')
 q = parse_modular_domain_genome_hits(modular_domain_hit, q)
 
 ## diamond against nonmodular fasta
 with tempfile.NamedTemporaryFile(dir=args.out, prefix='dmnd_out_', suffix='.txt', mode='w', delete=False) as dmnd_out:
     print("[4]" + print_datetime(), 'Running Diamond')
-    run_diamond(nonmodular_queries.name, args.dmnd_database, dmnd_out.name, args.threads, args.query_cover, args.identity) 
+    run_diamond(nonmodular_queries.name, dmnd_database, dmnd_out.name, args.threads, args.query_cover, args.identity) 
 
 ## parse diamond search
 parse_diamond_search(dmnd_out.name, q)
@@ -978,9 +1050,12 @@ opt_hits_by_contig, all_optional_proteins = grouping_user_req_opt_proteins_by_co
 print("[5]" + print_datetime(), 'Checking Presence for All Required User Proteins and Evaluating Intergenic Distance Betweeen Loci')
 final_window = checking_distance_bw_loci(req_hits_by_contig, all_required_proteins)
 
+## getting the genomes list
+genomes_list = get_list_genomes(args.genomes_dir)
+    
 ## generating Genbank files
 print("[5.2]" + print_datetime(), 'Generating Genbank Files for the Windows')
-generating_windows_genbanks(final_window, req_hits_by_contig, opt_hits_by_contig, f"{args.out}/windows_genbanks")
+generating_windows_genbanks(final_window, req_hits_by_contig, opt_hits_by_contig, genomes_list, f"{args.out}/windows_genbanks")
 
 ## making table for windows and optional hits                                                                                                                
 flattened_req_hits_by_contig, flattened_opt_hits_by_contig = making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv')
