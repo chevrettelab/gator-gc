@@ -43,7 +43,7 @@ stime = time.time()
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--genomes_dir', type=str, help='Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
+    parser.add_argument('--genomes_dir', type=str, nargs='+', help='Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
     parser.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)    
     parser.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for hmmsearch (default: all available).', required=False)
     parser.add_argument('--out', type=str, help='Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.', required=True)
@@ -72,18 +72,32 @@ def create_directory(directory_name: str) -> None:
         sys.stderr.write("ERROR: Failed to Make the "+directory_name+" Directory"+"\n")
         sys.stderr.write(str(e))
         sys.exit(1)
-        
-def replace_dashes_filenames_genomes_dir(genomes_dir):
-    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genomes_dir, geno_ext))]
-    for filepath in genbank_files:
-        filename = os.path.basename(filepath)
-        if '--' in filename:
-            new_filename = filename.replace('--', '_')
-            new_filepath = os.path.join(genomes_dir, new_filename)
-            os.rename(filepath, new_filepath)
+
+def get_list_genomes(genomes_dir):
+    gfiles = []
+    for pattern in genomes_dir:
+        dir_pattern, file_pattern = os.path.split(pattern)
+        if not file_pattern:
+            for geno_ext in GENBANK_EXTENSIONS:
+                dirs = glob.glob(dir_pattern)
+                for dirg in dirs:
+                    gfiles.extend(glob.glob(os.path.join(dirg, geno_ext)))
+        else:
+            dirs = glob.glob(dir_pattern)
+            for dirg in dirs:
+                gfiles.extend(glob.glob(os.path.join(dirg, file_pattern)))
+    return gfiles
+
+def replace_dashes_filenames_genomes_dir(gfiles):
+    for file_path in gfiles:
+        filename = os.path.basename(file_path)                                                                                                                                          
+        if '--' in filename:                                                                                                                                                          
+            new_filename = filename.replace('--', '_')                                                                                                                                
+            new_filepath = os.path.join(genomes_dir, new_filename)                                                                                                                    
+            os.rename(filepath, new_filepath)                                                                                                                                         
             print(f"Renamed file to avoid the '--' string: '{filepath}' to '{new_filepath}'")
-        
-def dbfaa_from_gb_dir(genomes_dir: str, db_faa: str) -> None:
+
+def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
     ## What function does:
      # Parse out protein sequences from GenBank files and writes them to a FASTA file.
     ## Arguments:
@@ -91,12 +105,10 @@ def dbfaa_from_gb_dir(genomes_dir: str, db_faa: str) -> None:
      # db_faa (str): output file name for the generated FASTA file containing protein sequences that will become dmnd db.
     ## Returns:
      #  None  
-    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genomes_dir, geno_ext))]
     with open(db_faa, 'w') as out_fh:
+        #for directory in genomes_dir:
+        #genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(directory, geno_ext))]
         for file_path in genbank_files:
-            if '--' in file_path:
-                sys.stderr.write(f"Error: Genbank File {file_path} contains an invalid character for GATOR-GC. Do not use '--'\n")
-                sys.exit(1)
             genome = os.path.basename(file_path)
             with open(file_path, 'r') as in_fh:
                 for rec in SeqIO.parse(in_fh, 'genbank'):
@@ -105,6 +117,8 @@ def dbfaa_from_gb_dir(genomes_dir: str, db_faa: str) -> None:
                             name, seq = None, None
                             if 'locus_tag' in feat.qualifiers:
                                 name = "|-|".join([genome, feat.qualifiers['locus_tag'][0], str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
+                            elif 'protein_id' in feat.qualifiers:
+                                name = "|-|".join([genome, feat.qualifiers['protein_id'][0], str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
                             if 'translation' in feat.qualifiers:
                                 seq = feat.qualifiers['translation'][0]
                             if name is not None and seq is not None:
@@ -163,23 +177,23 @@ args = parse_arguments()
 ## make output directory 
 create_directory(args.out)
 
+## getting list of genomes
+
+genomes_list = get_list_genomes(args.genomes_dir)
+
 ## replace dashes in filenames
-replace_dashes_filenames_genomes_dir(args.genomes_dir)
+replace_dashes_filenames_genomes_dir(genomes_list)
                       
 ## making protein database 
 print("[2]" + print_datetime(), 'Generating the Protein Database')
-#dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.proteins}')
-dbfaa_from_gb_dir(args.genomes_dir, f'{args.out}/{args.out}.faa')
+dbfaa_from_gb_dir(genomes_list, f'{args.out}/{args.out}.faa')
 
 ## making diamond database 
 print("[3]" + print_datetime(), 'Generating the Diamond  Database')
-#create_diamond_database(f'{args.out}/{args.proteins}', f'{args.out}/{args.dmnd_database}')
 create_diamond_database(f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.dmnd')
-
 
 ## running hmmsearch
 print("[4]" + print_datetime(), 'Making the Modular Domtblout Table for the Protein Database') 
-#run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.proteins}', f'{args.out}/{args.modular_domtblout}', args.threads, args.e_value)
 run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.domtblout', args.threads, args.e_value)
 
 ## elapsed time 
