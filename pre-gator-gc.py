@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import multiprocessing
 
+from Bio.Seq import Seq
 from Bio import SeqIO
 from datetime import datetime
 from typing import List, Set, Dict
@@ -34,8 +35,8 @@ DESCRIPTION = """
 GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters                                                                               
 Developer: José D. D. Cediel-Becerra
 Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette                                                                               
-Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                               
-Please contact me at jcedielbecerra@ufl.edu if you have any questions                                                                                       
+Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
+Please contact Jose at jcedielbecerra@ufl.edu if you have any issues                                                                                       
 Version: """+VERSION
 
 np.random.seed(53000)
@@ -43,10 +44,13 @@ stime = time.time()
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--genomes_dir', type=str, nargs='+', help='Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
-    parser.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)    
-    parser.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for hmmsearch (default: all available).', required=False)
-    parser.add_argument('--out', type=str, help='Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.', required=True)
+    input_group = parser.add_argument_group("Input Options")
+    hmmer_group = parser.add_argument_group("HMMER Options")
+    out_group = parser.add_argument_group("Output Options")
+    input_group.add_argument('--genomes_dir', type=str, nargs='+', help='Directory(ies) name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
+    hmmer_group.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)    
+    hmmer_group.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for hmmsearch (default: all available).', required=False)
+    out_group.add_argument('--out', type=str, help='Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.', required=True)
     return parser.parse_args()
 
 def print_datetime():
@@ -90,11 +94,11 @@ def get_list_genomes(genomes_dir):
 
 def replace_dashes_filenames_genomes_dir(gfiles):
     for file_path in gfiles:
-        filename = os.path.basename(file_path)                                                                                                                                          
-        if '--' in filename:                                                                                                                                                          
-            new_filename = filename.replace('--', '_')                                                                                                                                
-            new_filepath = os.path.join(genomes_dir, new_filename)                                                                                                                    
-            os.rename(filepath, new_filepath)                                                                                                                                         
+        filename = os.path.basename(file_path)
+        if '--' in filename:
+            new_filename = filename.replace('--', '_')
+            new_filepath = os.path.join(genomes_dir, new_filename)
+            os.rename(filepath, new_filepath)
             print(f"Renamed file to avoid the '--' string: '{filepath}' to '{new_filepath}'")
 
 def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
@@ -106,8 +110,6 @@ def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
     ## Returns:
      #  None  
     with open(db_faa, 'w') as out_fh:
-        #for directory in genomes_dir:
-        #genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(directory, geno_ext))]
         for file_path in genbank_files:
             genome = os.path.basename(file_path)
             with open(file_path, 'r') as in_fh:
@@ -116,11 +118,21 @@ def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
                         if feat.type == 'CDS':
                             name, seq = None, None
                             if 'locus_tag' in feat.qualifiers:
-                                name = "|-|".join([genome, feat.qualifiers['locus_tag'][0], str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
+                                name = "|-|".join([feat.qualifiers['locus_tag'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
                             elif 'protein_id' in feat.qualifiers:
-                                name = "|-|".join([genome, feat.qualifiers['protein_id'][0], str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
-                            if 'translation' in feat.qualifiers:
-                                seq = feat.qualifiers['translation'][0]
+                                name = "|-|".join([feat.qualifiers['protein_id'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
+                            try:
+                                if 'translation' in feat.qualifiers:
+                                    seq = feat.qualifiers['translation'][0]
+                                else:
+                                    if feat.location.strand == 1:
+                                        seq = str(Seq(rec.seq[feat.location.start:feat.location.end]).translate())
+                                    else:
+                                        seq = str(Seq(rec.seq[feat.location.start:feat.location.end].reverse_complement()).translate())
+                                    print(f"Warning: {feat.location} does not have sequence, but it was fixed")
+                            except Exception as e:
+                                print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
+                                seq = None
                             if name is not None and seq is not None:
                                 out_fh.write('>'+name+"\n"+seq+"\n")
 
