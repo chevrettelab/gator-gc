@@ -15,6 +15,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 
 from Bio import SeqIO
+from Bio.Seq import Seq
 from scipy.stats import norm
 from operator import itemgetter
 from datetime import datetime
@@ -41,7 +42,9 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'PKS_AT': 'PKS-AT'}
 MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
-
+INTERGENIC_DISTANCE_FACTOR = 1000
+WINDOW_EXTENSION_FACTOR = 1000
+EDGE_THRESHOLD = 500
 VERSION = 'v0.9.0'
 DESCRIPTION = """
 
@@ -60,7 +63,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette
 Afiliation: Microbiology & Cell Science Deparment, University of Florida
-Please contact me at jcedielbecerra@ufl.edu if you have any questions
+Please contact Jose at jcedielbecerra@ufl.edu if you have any issues
 Version:"""+VERSION
 
 np.random.seed(53000)
@@ -79,13 +82,15 @@ def parse_gator_arguments():
     input_group.add_argument('--optional', type=str, help='Query protein fasta file containing optional proteins.', required=False)
     input_group.add_argument('--genomes_dir', type=str, nargs='+', help='Directory containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
     input_group.add_argument('--gator_databases', type=str, help='Folder containing the pre-gator-gc databases (.faa and .domtblout', required=True)
-    alignment_group.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for diamond search and hmmsearch (default: all CPUs available).', required=False)
+    alignment_group.add_argument('--threads', type=int, default=int(multiprocessing.cpu_count()), help='CPUs wanted for diamond search and hmmsearch (default: all CPUs available).', required=False)
     alignment_group.add_argument('--query_cover', type=int, default=70,help='Protein percent query cover for diamond search (default: 70).', required=False)
     alignment_group.add_argument('--identity', type=int, default=35, help='Protein percent identity for diamond search (default: 35).', required=False)
     hmmer_group.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)
     gator_group.add_argument('--intergenic_distance', type=int, default=86, help='Distance in kilobases between required genes (default: 86 kb)', required=False)
     gator_group.add_argument('--window_extension', type=int, default=10, help='Extension in kilobases from the start and end positions of the windows (default: 10 kb)', required=False)
     out_group.add_argument('--out', type=str, help='Output directory name that will have GATOR-GC results', required=True)
+    out_group.add_argument('--no_conservation_figs', action='store_true', help='Gator conservation figures will not be created', required=False)
+    out_group.add_argument('--no_neighborhoods_figs', action='store_true', help='Gator neighborhoods figures will not be created', required=False)
     return parser.parse_args()
 
 def print_datetime():
@@ -205,7 +210,14 @@ def parse_modular_domain_query_hits(modular_domain_hit: Dict, protein_dict: Dict
             protein_dict[query_protein]['is_pks'] = True
     return protein_dict
 
-def get_dmnd_domtblout_paths(gator_databases):
+def get_dmnd_domtblout_paths(gator_databases: str) -> str:
+    ## What function does:
+    # Get the path for the Gator Diamond Database and for the Gator Domtblout Database
+    ## Arguments:
+     # gator_databases (str): A string containing the path for the folder Gator Databases
+    ## Returns:
+     # dmnd_database (str):A string containing the full path for the Gator Diamond Database
+     # domtblout_database (str): A string containing the full path for the Gator Domtblout Database
     dmnd_ = glob.glob(os.path.join(gator_databases, '*.dmnd'))
     dmnd_database = dmnd_[0]
     domtblout_ = glob.glob(os.path.join(gator_databases, '*.domtblout'))
@@ -237,7 +249,7 @@ def parse_modular_domain_genome_hits(modular_domain_hit: Dict, protein_dict: Dic
         elif protein_dict[query_protein]['is_nrps']:
             protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_nrps'])
         elif protein_dict[query_protein]['is_pks']:
-            protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_pks'])        
+            protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_pks'])
     return protein_dict
 
 def run_diamond(query: str, dmnddb: str, dmnd_out: str, threads: int, query_cover: float, identity: float, max_matches: int = int(1e50)) -> None:
@@ -297,12 +309,11 @@ def grouping_user_req_opt_proteins_by_contig(protein_dict: Dict, query_type: str
     hits_by_contig = {}
     all_required_proteins = set()
     for query_proteins in protein_dict:
-        #if 'query_type' not in protein_dict[query_proteins]:
-        #print(query_proteins)
         if protein_dict[query_proteins]['query_type'] == query_type:
             all_required_proteins.add(query_proteins)
             for hit in protein_dict[query_proteins]['hit']:
-                locus, start_position, end_position, genome_contig_id = (hit.split('|-|')[1:4] + [hit.split('|-|')[0] + '|-|' + hit.split('|-|')[-1]])
+                split_hit = hit.split('|-|')
+                locus, start_position, end_position, genome_contig_id = (split_hit[0:3] + [split_hit[0].split('|_|')[1] + '|-|' + split_hit[-1]])
                 if genome_contig_id not in hits_by_contig:
                     hits_by_contig[genome_contig_id] = []
                 hits_by_contig[genome_contig_id].append({'query_protein': query_proteins,
@@ -346,7 +357,7 @@ def checking_distance_bw_loci(req_hits_by_contig: Dict, all_required_proteins: S
     for required_hits in has_all_req:
         if init_window:
             is_different_contig = required_hits['genome_contig_id'] != init_window[0]['genome_contig_id']
-            exceeds_intergenic_distance_cutoff = int(required_hits['start_position']) - int(init_window[-1]['end_position']) > (args.intergenic_distance * 1000)
+            exceeds_intergenic_distance_cutoff = int(required_hits['start_position']) - int(init_window[-1]['end_position']) > (args.intergenic_distance * INTERGENIC_DISTANCE_FACTOR)
             if is_different_contig or exceeds_intergenic_distance_cutoff:
                 checking_all_required_proteins(init_window, all_required_proteins, final_window)
                 init_window = []
@@ -357,20 +368,42 @@ def checking_distance_bw_loci(req_hits_by_contig: Dict, all_required_proteins: S
         sys.exit(1)
     return final_window
 
-def get_list_genomes(genomes_dir):
-    gfiles = []
-    for pattern in genomes_dir:
-        dir_pattern, file_pattern = os.path.split(pattern)
-        if not file_pattern:
-            for geno_ext in GENBANK_EXTENSIONS:
-                dirs = glob.glob(dir_pattern)
-                for dirg in dirs:
-                    gfiles.extend(glob.glob(os.path.join(dirg, geno_ext)))
+def get_list_genomes(genomes_dirs: List) -> List:
+    ## What function does:
+     # Get a list containing the full path for the user input genomes
+    ## Arguments:
+     # genomes_dir (List): A list containing the directories having the genomes. It can be a single directory or multiple. Wildcards are allowed
+    ## Returns:
+     # genomes_list (List): A list containing the full path for the user input genomes
+    genomes_list = []
+    for directory in genomes_dirs:
+        dir_path, genome_wildcard_pattern = os.path.split(directory)
+        if not genome_wildcard_pattern:
+            for genome_extension in GENBANK_EXTENSIONS:
+                directories_paths = glob.glob(dir_path)
+                for directory_path in directories_paths:
+                    genomes_list.extend(glob.glob(os.path.join(directory_path, genome_extension)))
         else:
-            dirs = glob.glob(dir_pattern)
-            for dirg in dirs:
-                gfiles.extend(glob.glob(os.path.join(dirg, file_pattern)))
-    return gfiles
+            directories_paths = glob.glob(dir_path)
+            for directory_path in directories_paths:
+                genomes_list.extend(glob.glob(os.path.join(directory_path, genome_wildcard_pattern)))
+    return genomes_list
+                        
+def processing_qualifier(items, feat, genome):
+    for item in items:
+        if "locus_tag" in feat.qualifiers and feat.qualifiers["locus_tag"][0] == item["locus"]:
+            update_qualifiers(feat, item)
+        elif "protein_id" in feat.qualifiers and feat.qualifiers["protein_id"][0] == item["locus"]:
+            update_qualifiers(feat, item)
+
+def update_qualifiers(feat, item):
+    feat.qualifiers["gator_query"] = [item["query_type"]]
+    if item["is_nrps"]:
+        feat.qualifiers["gator_nrps"] = True
+    if item["is_pks"]:
+        feat.qualifiers["gator_pks"] = True
+    if not item["is_nrps"] and not item["is_pks"]:
+        feat.qualifiers["gator_hit"] = [item["query_protein"]]        
 
 def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Dict, opt_hits_by_contig: Dict, genomes_list: List, output_directory: str) -> None:
     ## What function does:
@@ -381,94 +414,68 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
     ## Returns:
      # None
     window_count = 1
+    window_dictionary = {}
     for windows in final_window:
         start_positions, end_positions = [], []
         for window in windows:
-            parsing_gci, parsing_start, parsing_end  = window['genome_contig_id'].split('|-|'), window['start_position'], window['end_position']
+            parsing_gci, parsing_start, parsing_end = window['genome_contig_id'].split('|-|'), window['start_position'], window['end_position']
             genome, contig = parsing_gci[0], parsing_gci[1]
             start_positions.append(parsing_start)
             end_positions.append(parsing_end)
-        min_start, max_end = (min(start_positions) - (args.window_extension * 1000)), (max(end_positions) + (args.window_extension * 1000))
+        min_start, max_end = (min(start_positions) - (args.window_extension * WINDOW_EXTENSION_FACTOR)), (max(end_positions) + (args.window_extension * WINDOW_EXTENSION_FACTOR))
         if min_start < 0:
             min_start = 0
-        #for directory in args.genomes_dir:
-            #list_genomes = os.listdir(directory)
-        for full_path_genomes in genomes_list:
-            filename = os.path.basename(full_path_genomes)
-            if genome in filename:
-                #file_path = os.path.join(directory, genome)
-                with open(full_path_genomes, 'r') as gf: 
-                    for rec in SeqIO.parse(gf, 'genbank'):
-                        if rec.id == contig:
-                            record_to_write = rec
-                            for feat in rec.features:
-                                if feat.type == "CDS":
-                                    if feat.location.start <= (0 + 500) or feat.location.end >= (len(rec) - 500):
-                                        feat.qualifiers["contig_edge"] = ["true"]
+        base_names = {os.path.basename(path): path for path in genomes_list}
+        if genome in base_names:
+            with open(base_names[genome], 'r') as gf:
+                for rec in SeqIO.parse(gf, 'genbank'):
+                    if rec.id == contig:
+                        if max_end > len(rec):
+                            max_end = len(rec)
+                        for feat in rec.features:
+                            if feat.type == "CDS":
+                                if feat.location.start <= (0 + EDGE_THRESHOLD) or feat.location.end >= (len(rec) - EDGE_THRESHOLD):
+                                    feat.qualifiers["contig_edge"] = True
+                                else:
+                                    feat.qualifiers["contig_edge"] = False
+                        sub_seq = rec[min_start:max_end]
+                        for sub_feat in sub_seq.features:
+                            if sub_feat.type == "CDS":
+                                if "locus_tag" in sub_feat.qualifiers:
+                                    sub_feat.qualifiers['locus_tag'][0] += "|_|" + genome
+                                elif "protein_id" in sub_feat.qualifiers:
+                                    sub_feat.qualifiers['protein_id'][0] += "|_|" + genome
+                                sub_feat.qualifiers["gator_query"] = ["na"]
+                                sub_feat.qualifiers["gator_nrps"] = False
+                                sub_feat.qualifiers["gator_pks"] = False
+                                sub_feat.qualifiers["gator_hit"] = ["na"]
+                                for key in req_hits_by_contig:
+                                    processing_qualifier(req_hits_by_contig[key], sub_feat, genome)
+                                for key in opt_hits_by_contig:
+                                    processing_qualifier(opt_hits_by_contig[key], sub_feat, genome)
+                                try:
+                                    if 'translation' in sub_feat.qualifiers:
+                                        seq = sub_feat.qualifiers['translation'][0]
                                     else:
-                                        feat.qualifiers["contig_edge"] = ["false"] 
-                            if max_end > len(record_to_write):
-                                max_end = len(record_to_write)
-                            sub_seq = record_to_write[min_start:max_end]
-                            sub_seq.annotations["molecule_type"] = "DNA"
-                            for feat in sub_seq.features:
-                                if feat.type == "CDS":
-                                    feat.qualifiers["gator_query"] = ["na"]
-                                    feat.qualifiers["gator_nrps"] = ["false"]
-                                    feat.qualifiers["gator_pks"] = ["false"]
-                                    feat.qualifiers["gator_hit"] = ["na"]
-                                    for key in req_hits_by_contig:
-                                        for item in req_hits_by_contig[key]:
-                                            if "locus_tag" in feat.qualifiers:
-                                                if feat.qualifiers["locus_tag"][0] == item["locus"]:
-                                                    feat.qualifiers["gator_query"] = item["query_type"]
-                                                    if item["is_nrps"]:
-                                                        feat.qualifiers["gator_nrps"] = ["true"]
-                                                    elif item["is_pks"]:
-                                                        feat.qualifiers["gator_pks"] = ["true"]
-                                                    else:
-                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
-                                            elif "protein_id" in feat.qualifiers:
-                                                if feat.qualifiers["protein_id"][0] == item["locus"]:
-                                                    feat.qualifiers["gator_query"] = item["query_type"]
-                                                    if item["is_nrps"]:
-                                                        feat.qualifiers["gator_nrps"] = ["true"]
-                                                    elif item["is_pks"]:
-                                                        feat.qualifiers["gator_pks"] = ["true"]
-                                                    else:
-                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
-                                                                        
-                                    for	key in opt_hits_by_contig:
-                                        for item in opt_hits_by_contig[key]:
-                                            if "locus_tag" in feat.qualifiers:
-                                                if feat.qualifiers["locus_tag"][0] == item["locus"]:
-                                                    feat.qualifiers["gator_query"] = item["query_type"]
-                                                    if item["is_nrps"]:
-                                                        feat.qualifiers["gator_nrps"] = ["true"]
-                                                    elif item["is_pks"]:
-                                                        feat.qualifiers["gator_pks"] = ["true"]
-                                                    else:
-                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
-                                            elif "protein_id" in feat.qualifiers:
-                                                if feat.qualifiers["protein_id"][0] == item["locus"]:
-                                                    feat.qualifiers["gator_query"] = item["query_type"]                                    
-                                                    if item["is_nrps"]:
-                                                        feat.qualifiers["gator_nrps"] = ["true"]
-                                                    elif item["is_pks"]:
-                                                        feat.qualifiers["gator_pks"] = ["true"]
-                                                    else:
-                                                        feat.qualifiers["gator_hit"] = [item["query_protein"]]
-                                                
-                os.makedirs(output_directory, exist_ok=True)
-                basename, extension = os.path.splitext(os.path.basename(genome))
-                file_name = f"window_{window_count}--{basename}.gbff"
-                output_file = os.path.join(output_directory, file_name)
-                with open(output_file, 'w') as outf:
-                    ### return sub_seq to save everything we need, and the window_count
-                    SeqIO.write(sub_seq, outf, 'genbank')
-                window_count += 1
+                                        if sub_feat.location.strand == 1:
+                                            seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end]).translate())
+                                        else:
+                                            seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end].reverse_complement()).translate())
+                                        sub_feat.qualifiers["translation"] = [seq]
+                                except Exception as e:
+                                    print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
+            sub_seq_list = []
+            os.makedirs(output_directory, exist_ok=True)
+            basename, extension = os.path.splitext(genome)
+            file_name = f"window_{window_count}--{basename}.gbff"
+            output_file = os.path.join(output_directory, file_name)
+            with open(output_file, 'w') as outf:
+                SeqIO.write(sub_seq, outf, 'genbank')
+            window_dictionary[genome] = {'sub_seq': sub_seq, 'window': window_count}
+            window_count += 1
+    return window_dictionary
 
-def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict, opt_hits_by_contig: Dict, windows_tsv: str) -> List:
+def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict, opt_hits_by_contig: Dict, windows_tsv: str, window_dictionary) -> List:
     ## What function does:
      # Export a TSV file containig all required and optional hits organized by windows
     ## Arguments:
@@ -480,29 +487,25 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
     flattened_req_hits_by_contig = [item for sublist in req_hits_by_contig.values() for item in sublist]
     flattened_opt_hits_by_contig = [item for sublist in opt_hits_by_contig.values() for item in sublist]
     req_opt_hits_list = flattened_req_hits_by_contig + flattened_opt_hits_by_contig
-    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     final_window_extension = []
-    for file_path in genbank_files:
-        window_genome = os.path.basename(file_path).split('--')[0]
-        num_window = window_genome.split('_')[1]
-        for rec in SeqIO.parse(file_path, 'genbank'):
-            for feat in rec.features:
-                if feat.type == 'CDS':
-                    if "locus_tag" in feat.qualifiers:
-                        final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
-                                                       'window': num_window})
-                    elif "protein_id" in feat.qualifiers:
-                        final_window_extension.append({'locus': feat.qualifiers['protein_id'][0],
-                                                       'window': num_window})
+    for key in window_dictionary:
+        for feat in window_dictionary[key]['sub_seq'].features:
+            if feat.type == "CDS":
+                if "locus_tag" in feat.qualifiers:
+                    final_window_extension.append({'locus': feat.qualifiers['locus_tag'][0],
+                                                   'window': window_dictionary[key]['window']}) 
+                elif "protein_id" in feat.qualifiers:
+                    final_window_extension.append({'locus': feat.qualifiers['protein_id'][0],
+                                                   'window': window_dictionary[key]['window']})
     for req_opt_hits in req_opt_hits_list:
         for window_req_opt_hits in final_window_extension:
             if req_opt_hits['locus'] == window_req_opt_hits['locus']:
-                req_opt_hits['window'] = window_req_opt_hits['window']
+                req_opt_hits['window'] = window_req_opt_hits['window'] 
     for hits in req_opt_hits_list:
         try:
             hits['window'] = int(hits['window'])
         except ValueError:
-            hits['window'] = float('inf')
+            hits['window'] = float('inf')             
     window_opt_hits_by_gci = {}
     for hits in req_opt_hits_list:
         gci = hits['genome_contig_id']
@@ -519,9 +522,9 @@ def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig:
         window_opt_hits_tsv.writeheader()
         for dictionaries in sorted_by_window:
             window_opt_hits_tsv.writerows(dictionaries)
-    return flattened_req_hits_by_contig, flattened_opt_hits_by_contig
+    return flattened_req_hits_by_contig, flattened_opt_hits_by_contig 
 
-def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
+def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str, window_dictionary) -> None:
     ## What function does:
      # Parse out protein sequences from GenBank files and writes them to a FASTA file.
     ## Arguments:
@@ -529,25 +532,21 @@ def dbfaa_from_gb_dir(genbank_dir: str, db_faa: str) -> None:
      # db_faa (str): output file name for the generated FASTA file containing protein sequences that will become dmnd db.
     ## Returns:
      #  None
-    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     with open(db_faa, 'w') as out_fh:
-        for file_path in genbank_files:
-            genome = os.path.basename(file_path)
-            window = genome.split('--')[0]
-            with open(file_path, 'r') as in_fh:
-                for rec in SeqIO.parse(in_fh, 'genbank'):
-                    for feat in rec.features:
-                        if feat.type == 'CDS':
-                            name, seq = None, None
-                            if 'locus_tag' in feat.qualifiers:
-                                name = "|-|".join([genome, feat.qualifiers['locus_tag'][0], window, str(int(feat.location.start)), str(int(feat.location.end)), feat.qualifiers['contig_edge'][0], str(int(len(rec)))])
-                            elif 'protein_id' in feat.qualifiers:
-                                name = "|-|".join([genome, feat.qualifiers['protein_id'][0], window, str(int(feat.location.start)), str(int(feat.location.end)), feat.qualifiers['contig_edge'][0], str(int(len(rec)))])
-                            if 'translation' in feat.qualifiers:
-                                seq = feat.qualifiers['translation'][0]
-                            if name is not None and seq is not None:
-                                out_fh.write('>'+name+"\n"+seq+"\n")
-                                
+        for key in window_dictionary:
+            window_name = os.path.splitext('window_'+str(window_dictionary[key]['window'])+'--'+key)[0]+'.gbff'
+            for feat in window_dictionary[key]['sub_seq'].features:
+                if feat.type == "CDS":
+                    name, seq = None, None
+                    if 'locus_tag' in feat.qualifiers:
+                        name = "|-|".join([window_name, feat.qualifiers['locus_tag'][0], str(window_dictionary[key]['window']), str(int(feat.location.start)), str(int(feat.location.end)), str(feat.qualifiers['contig_edge']), str(int(len(window_dictionary[key]['sub_seq']))), str(feat.qualifiers['gator_nrps']), str(feat.qualifiers['gator_pks'])])     
+                    elif 'protein_id' in feat.qualifiers:
+                        name = "|-|".join([window_name, feat.qualifiers['protein_id'][0], str(window_dictionary[key]['window']), str(int(feat.location.start)), str(int(feat.location.end)), str(feat.qualifiers['contig_edge']), str(int(len(window_dictionary[key]['sub_seq']))), str(feat.qualifiers['gator_nrps']), str(feat.qualifiers['gator_pks'])])    
+                    if 'translation' in feat.qualifiers:
+                        seq = feat.qualifiers['translation'][0]
+                    if name is not None and seq is not None:
+                        out_fh.write('>'+name+"\n"+seq+"\n")
+                        
 def create_diamond_database(db_faa: str, database_name: str) -> None:
     ## What function does
      # Create a dmnd db using the provided FASTA file.
@@ -616,7 +615,7 @@ def calculating_gator_focal_scores(pa_tables_directory: str, windows_table: str,
                     loci_index = len(loci_pa_tables) + 1
                     num_loci_array = np.arange(1, loci_index)
                     position_loci_in_window = loci_pa_tables.get_loc(locus) + 1
-                    stan_dev = (loci_index * 15) / 200
+                    stan_dev = (loci_index * 15) / 200 
                     probability_function = norm.pdf(num_loci_array, loc=position_loci_in_window, scale=stan_dev)
                     normal_distribution = probability_function / np.max(probability_function)
                     if max_normal_distribution is None:
@@ -664,13 +663,14 @@ def generating_clustermap(concatenated_GFSs: str, output_dir: str) -> None:
     ## Returns:
      # None: It just generates the clustermap
     gcfs = pd.read_csv(concatenated_GFSs, delimiter=",")
-    gcfs['Genbank Windows'] = gcfs['Genbank Windows'].str.split('-').str[0]
-    gcfs['Gator Focal Window'] = gcfs['Gator Focal Window'].str.split('-').str[0]
+    #gcfs['Genbank Windows'] = gcfs['Genbank Windows'].str.split('--').str[0]
+    gcfs['Genbank Windows'] = gcfs['Genbank Windows'].apply(lambda x: os.path.splitext(x)[0])
+    gcfs['Gator Focal Window'] = gcfs['Gator Focal Window'].apply(lambda x: os.path.splitext(x)[0])
+    #gcfs['Gator Focal Window'] = gcfs['Gator Focal Window'].str.split('--').str[0]
     matrix_gcfs = gcfs.pivot(index='Genbank Windows', columns='Gator Focal Window', values='Gator Focal Score')
     matrix_gcfs = matrix_gcfs.fillna(0)
-    fig, ax = plt.subplots(figsize=(13, 10))
-    gcfs_clustermap = sns.clustermap(matrix_gcfs, linewidths=1, linecolor='black', annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2})
-    gcfs_clustermap.savefig(output_dir, dpi=1200)
+    gcfs_clustermap = sns.clustermap(matrix_gcfs, figsize=(10, 10), linewidths=1, linecolor='black', annot=False, cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=True, yticklabels=True, tree_kws={'linewidths':1.2}, cbar_pos=(1, 0, 0.03, 0.15))
+    gcfs_clustermap.savefig(output_dir)
 
 def calculating_gator_conservation_percentages(pa_tables_directory: str) -> Dict:
     ## What function does
@@ -699,105 +699,76 @@ def opacity_to_hex(opacity: int) -> int:
      # A hexadecimal string format for the opacity (alpha)
     return hex(int(opacity * 255))[2:].zfill(2)
 
-def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict, req_loci: List, opt_loci: List) -> None: 
-    ## What function does
-     # Make the neighborhoods tracks for the figures
-    ## Arguments:
-     # track (str): A string containing the window name and lenght of the record
-     # is_focal (str): A string with a boolean decision when track is for a focal window
-     # loci_list (List): A list containing the loci needed to display in the tracks
-     # percentages (Dict): A dictionary containing the information about the conservation percentages for each gator focal window
-     # req_loci (List): A list containing required loci, used to define their color and label in the tracks
-     # opt_loci (List): A list containing optional loci, used to define their color and label in the tracks  
-    ## Returns:
-     # None: It just generates the tracks
+def get_label_figures(is_focal: str, gator_query:str, gator_hit:str, gator_nrps:str, gator_pks:str, annotation:str) -> str:
+    if gator_hit != 'na':
+        return f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
+    else:
+        if gator_nrps and gator_pks:
+            return f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
+        elif gator_nrps:
+            return f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
+        else:
+            return f'[{gator_query}:gator_pks]' + ' ' + annotation if is_focal else None
+
+def making_tracks(track: str, is_focal: str, loci_list: List, percentages: Dict, req_loci: List, opt_loci: List) -> None:  
     for index, cds_tuple in enumerate(loci_list, 1):
         start, end, strand, locus, annotation, gator_query, gator_nrps, gator_pks, gator_hit, contig_edge = cds_tuple
-        opacity = 0
-        for inner in percentages.values():
-            if locus in inner:
-                opacity = inner[locus]
-                break
+        opacity = next((inner[locus] for inner in percentages.values() if locus in inner), 0)
         alpha = opacity_to_hex(opacity)
         if locus in req_loci:
             color = '#7570B3'
-            if gator_hit != 'na':
-                label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
-            else:
-                if gator_nrps == 'true' and gator_pks == 'true':
-                    label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
-                elif gator_nrps == 'true':
-                    label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
-                else:
-                    label = f'[{gator_query}:gator_pks]' + ' ' + annotation if is_focal else None
+            label = get_label_figures(is_focal, gator_query, gator_hit, gator_nrps, gator_pks, annotation)
         elif locus in opt_loci:
             color = '#C87137' + alpha
-            if gator_hit != 'na':
-                label = f'[{gator_query}:{gator_hit}]' + ' ' + annotation if is_focal else None
-            else:
-                if gator_nrps == 'true' and gator_pks == 'true':
-                    label = f'[{gator_query}:gator_nrps_pks]' + ' ' + annotation if is_focal else None
-                elif gator_nrps == 'true':
-                    label = f'[{gator_query}:gator_nrps]' + ' ' + annotation if is_focal else None
-                else:
-                    label = f'[{gator_query}:gator_pks]' + ' ' + annotation if is_focal else None
+            label = get_label_figures(is_focal, gator_query, gator_hit, gator_nrps, gator_pks, annotation)
         else:
             color = '#008423' + alpha
-            label = ''
+            label = ""
         track.add_feature(start, end, strand, facecolor="white")
-        if contig_edge == "true":
-            edgecolor="gray"
-            #patch_kws=dict(hatch="/")
-        else:
-            edgecolor="black"
-            #patch_kws=None
+        edgecolor = "red" if contig_edge else "black"
         track.add_feature(start, end, strand, label=label, facecolor=color, labelsize=15, linewidth=1.5, labelvpos="top", edgecolor=edgecolor)
-        
-def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List, flattened_opt_hits_by_contig: List, percentages: Dict, directory_output: str) -> None:
-    ## What function does
+
+def append_loci_window_list(feat, key):
+    return (int(feat.location.start),
+            int(feat.location.end),
+            feat.location.strand,
+            feat.qualifiers[key][0],
+            feat.qualifiers.get('product', ['no_annotation'])[0],
+            feat.qualifiers['gator_query'][0],
+            feat.qualifiers['gator_nrps'],
+            feat.qualifiers['gator_pks'],
+            feat.qualifiers['gator_hit'][0],
+            feat.qualifiers['contig_edge'])
+
+def dictionary_to_genomeviz(windows_dictionary, append_loci_window_list, flattened_req_hits_by_contig, flattened_opt_hits_by_contig):
+    req_loci = [req_hits['locus'] for req_hits in flattened_req_hits_by_contig]
+    opt_loci = [opt_hits['locus'] for opt_hits in flattened_opt_hits_by_contig]
+    windows = {}
+    for key in windows_dictionary:
+        loci_list = []
+        window_name = os.path.splitext('window_'+str(windows_dictionary[key]['window'])+'--'+key)[0]+'.gbff'
+        track_name = os.path.splitext('window_'+str(windows_dictionary[key]['window'])+'--'+key)[0]
+        for feat in window_dictionary[key]['sub_seq'].features:
+            if feat.type == "CDS":
+                if "locus_tag" in feat.qualifiers:
+                    loci_list.append(append_loci_window_list(feat, "locus_tag"))
+                elif "protein_id" in feat.qualifiers:
+                    loci_list.append(append_loci_window_list(feat, "protein_id"))
+        windows[window_name] = {'window': 'window_'+str(windows_dictionary[key]['window']), 'track_name': track_name, 'record_length': len(windows_dictionary[key]['sub_seq']), 'loci_list': loci_list}
+    return windows, req_loci, opt_loci
+
+def gator_conservation_plot(windows, req_loci: List, opt_loci: List, percentages: Dict, directory_output: str):                  
+    ## What function does:
      # Generates a gator conservation figure for each window
     ## Arguments:
      # genbank_dir (str): A string containing the directory path for the windows Genbanks
      # flattened_req_hits_by_contig (List): A list containing all the required hits grouped by the same contig
      # flattened_opt_hits_by_contig (List): A list containing all the optional hits grouped by the same contig
      # directory_output (str): A string containing the directory path wanted to save the gator conservation figures
-    ## Returns:
-     # None: It just generates the gator conservation figures
-    genbank_files = [geno_file for geno_ext in GENBANK_EXTENSIONS for geno_file in glob.glob(os.path.join(genbank_dir, geno_ext))]
     req_loci = [req_hits['locus'] for req_hits in flattened_req_hits_by_contig]
     opt_loci = [opt_hits['locus'] for opt_hits in flattened_opt_hits_by_contig]
-    windows = {}
-    for file_path in genbank_files:
-        loci_list = []
-        window_gbff = os.path.basename(file_path)
-        window_genome = os.path.splitext(os.path.basename(file_path))[0]
-        window = window_genome.split('--')[0]
-        for rec in SeqIO.parse(file_path, 'genbank'):
-            for feat in rec.features:
-                if feat.type == 'CDS':
-                    if "locus_tag" in feat.qualifiers:
-                        loci_list.append((int(feat.location.start),
-                                          int(feat.location.end),
-                                          feat.location.strand,
-                                          feat.qualifiers['locus_tag'][0],
-                                          feat.qualifiers.get('product', ['no_annotation'])[0],
-                                          feat.qualifiers['gator_query'][0],
-                                          feat.qualifiers['gator_nrps'][0],
-                                          feat.qualifiers['gator_pks'][0],
-                                          feat.qualifiers['gator_hit'][0],
-                                          feat.qualifiers['contig_edge'][0]))
-                    elif "protein_id" in feat.qualifiers:
-                        loci_list.append((int(feat.location.start),
-                                          int(feat.location.end),
-                                          feat.location.strand,
-                                          feat.qualifiers['protein_id'][0],
-                                          feat.qualifiers.get('product', ['no_annotation'])[0],
-                                          feat.qualifiers['gator_query'][0],
-                                          feat.qualifiers['gator_nrps'][0],
-                                          feat.qualifiers['gator_pks'][0],
-                                          feat.qualifiers['gator_hit'][0],
-                                          feat.qualifiers['contig_edge'][0]))
-        windows[window_gbff] = {'window': window, 'record_length': len(rec), 'loci_list': loci_list}
+    for key in windows:
+        window_name = os.path.splitext(key)[0]
         gv = GenomeViz(
             fig_width = 20,
             fig_track_height = 0.5,
@@ -809,17 +780,16 @@ def gator_conservation_plot(genbank_dir: str, flattened_req_hits_by_contig: List
             tick_style = "bar",
             plot_size_thr = 0,
             tick_labelsize = 15,
-        )        
-        track = gv.add_feature_track(window, len(rec), labelmargin=0.03, linecolor="#333333", linewidth=2)
-        making_tracks(track, True, loci_list, percentages, req_loci, opt_loci)
-        track.set_sublabel(text=f"{round(len(rec)/1000, 2)} Kb", ymargin=1.5)                                                
+        )
+        track = gv.add_feature_track(windows[key]['track_name'], windows[key]['record_length'], labelmargin=0.03, linecolor="#333333", linewidth=2)
+        making_tracks(track, True, windows[key]['loci_list'], percentages, req_loci, opt_loci)
+        track.set_sublabel(text=f"{round(windows[key]['record_length']/1000, 2)} Kb", ymargin=1.5)
         os.makedirs(directory_output, exist_ok=True)
-        output_filepath = os.path.join(directory_output, f"{window_genome}.svg")
+        output_filepath = os.path.join(directory_output, f"{window_name}.svg")
         fig = gv.plotfig()
         gv.set_colorbar(fig, bar_colors=['#7570B3ff', '#C87137ff', '#008423ff'], alpha=1, vmin=0, vmax=100, bar_height=1.4, bar_label="Conservation", bar_labelsize=13)
-        fig.savefig(output_filepath, dpi=1200)
-    return windows, req_loci, opt_loci
-        
+        fig.savefig(output_filepath)  
+
 def ordering_windows_by_GFSs(concatenated_GFSs: str) -> Dict:
     ## What function does
      # Order the windows found based on the gator focal scores for each gator focal window
@@ -860,30 +830,40 @@ def parsing_diamond_identity(dmnd_out: str) -> Dict:
         for row in fh:
             columns = row.strip().split('\t')
             col0, col1 = columns[0].split('|-|'), columns[1].split('|-|')
+            query_nrps = col0[7]
+            query_pks = col0[8]
+            hit_nrps = col1[7]
+            hit_pks = col1[8]
+            bit_score = float(columns[11])
             query_window, locus_query, query_start, query_end, contig_edge, record_length_query, hit_window, locus_hit, hit_start, hit_end, record_length_hit, per_identity = col0[0], col0[1], int(col0[3]), int(col0[4]), col0[5], int(col0[6]), col1[0], col1[1], int(col1[3]), int(col1[4]), int(col1[6]), float(columns[2])
-                                                
-           
+                           
             if query_window not in windows_identity:
                 windows_identity[query_window] = {}
-            if hit_window not in windows_identity[query_window]:
+            if hit_window not in windows_identity[query_window]:   
                 windows_identity[query_window][hit_window] = []
-            windows_identity[query_window][hit_window].append({'query_window': query_window.split('--')[0],
+            windows_identity[query_window][hit_window].append({'query_window': os.path.splitext(query_window)[0],
+                                                               'query_nrps': query_nrps,
+                                                               'query_pks': query_pks,
                                                                'query_start': query_start,
                                                                'query_end': query_end,
-                                                               'hit_window': hit_window.split('--')[0],
+                                                               'hit_window': os.path.splitext(hit_window)[0],
+                                                               'hit_nrps': hit_nrps,
+                                                               'hit_pks': hit_pks,
                                                                'hit_start': hit_start,
                                                                'hit_end': hit_end,
                                                                'per_identity': per_identity,
                                                                'record_length_query': record_length_query,
                                                                'record_length_hit': record_length_hit,
-                                                               'contig_edge': contig_edge
+                                                               'bit_score': bit_score,
+                                                               'locus_query': locus_query,
+                                                               'locus_hit': locus_hit
                                                                })
-
+                
             if locus_query not in all_hits:
                 all_hits[locus_query] = {}
             all_hits[locus_query][locus_hit] = per_identity
     return windows_identity, all_hits
-
+    
 def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
     ## What function does                                                                                                                                         
      # make a list of required focal hits
@@ -895,8 +875,9 @@ def gather_focal_hits(loci_list_focal: List, all_hits: Dict) -> Tuple:
     for i, cds_focal in enumerate(loci_list_focal, 1):
         startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
         if gqueryf == 'req':
-            hlog = all_hits[locusf].keys()
-            return (hlog, strandf)
+            if not gnrpsf and not gpksf:
+                hlog = all_hits[locusf].keys()
+                return (hlog, strandf)
 
 def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
     ## What function does
@@ -925,7 +906,7 @@ def flip_windows_genbanks(hlog, strandf, record_length, loci_list_no_focal):
         return new_loci_list, flip
     else:
         return loci_list_no_focal, flip
-        
+
 def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dict,  ordered_windows_w_focal: Dict, windows_identity: Dict, directory_output: str, percentages: Dict, req_loci: List, opt_loci: List, ordering_windows_by_GFS) -> None:
     ## What function does
      # Make gator neighborhoods for each gator focal window with the correspinding gator windows ordered based on the gator focal scores
@@ -942,46 +923,52 @@ def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dic
      # None: It just make the gator neighborhood figures
     for key, window_dict in windows.items():
         gv = GenomeViz(
-        fig_width = 20,
-        fig_track_height = 0.5,
-        align_type = "center",
-        feature_track_ratio = 2.0,
-        link_track_ratio = 3.0,
-        tick_track_ratio = 1.0,
-        track_spines = False,
-        tick_style = "bar",
-        plot_size_thr = 0,
-        tick_labelsize = 15
+            fig_width = 20,
+            fig_track_height = 0.5,
+            align_type = "center",
+            feature_track_ratio = 2.0,
+            link_track_ratio = 3.0,
+            tick_track_ratio = 1.0,
+            track_spines = False,
+            tick_style = "bar",
+            plot_size_thr = 0,
+            tick_labelsize = 15
         )
         hlog, strandf = gather_focal_hits(window_dict["loci_list"], all_hits)
-        track = gv.add_feature_track(window_dict["window"], window_dict["record_length"], labelmargin=0.03, linecolor="#333333", linewidth=2)
+        track = gv.add_feature_track(window_dict["track_name"], window_dict["record_length"], labelmargin=0.03, linecolor="#333333", linewidth=2)
         making_tracks(track, True, window_dict["loci_list"], percentages, req_loci, opt_loci)
-        #print(window_dict["loci_list"])
         flips = ['False']
         for window_name in ordered_window[key]:
             new_loci_list, flip = flip_windows_genbanks(hlog, strandf, windows[window_name]["record_length"], windows[window_name]["loci_list"])
             flips.append(flip)
-            track2 = gv.add_feature_track(windows[window_name]["window"], windows[window_name]["record_length"], labelmargin=0.03,linecolor="#333333", linewidth=2)
-            #making_tracks(track2, False, windows[window_name]["loci_list"], percentages, req_loci, opt_loci)
-            #track2.set_sublabel('GFS:0.78', ymargin=0.6, size=10.0)
+            track2 = gv.add_feature_track(windows[window_name]["track_name"], windows[window_name]["record_length"], labelmargin=0.03,linecolor="#333333", linewidth=2)
             making_tracks(track2, False, new_loci_list, percentages, req_loci, opt_loci)
         os.makedirs(directory_output, exist_ok=True)
         output_filepath = os.path.join(directory_output, f'{key[:-5]}_neighboorhoods.svg')
         normal_color, inverted_color, alpha = "grey", "green", 0.5
+        max_bitscore_items = {}
         for i in range(0, len(ordered_windows_w_focal[key])-1):
+            max_bitscore_items = {}
             for item in windows_identity[ordered_windows_w_focal[key][i]][ordered_windows_w_focal[key][i+1]]:
+                locus_query = item['locus_query']
+                if item["query_nrps"] or item["query_pks"]:
+                    if locus_query not in max_bitscore_items or item['bit_score'] > max_bitscore_items[locus_query]['bit_score']:
+                        max_bitscore_items[locus_query] = item
+                else:
+                    max_bitscore_items[locus_query] = item
+            for locus_query, item in max_bitscore_items.items():
                 link_data1 = (item['query_window'], item['query_start'], item['query_end'])
                 link_data2 = (item['hit_window'], item['hit_start'], item['hit_end'])
                 if i >= len(flips)-1:
                     break
                 if flips[i] and i != 0:
-                    link_data1 = (item['query_window'], (item['record_length_query'] - item['query_end']), (item['record_length_query'] - item['query_start']))        
+                    link_data1 = (item['query_window'], (item['record_length_query'] - item['query_end']), (item['record_length_query'] - item['query_start']))
                 if flips[i+1]:
-                    link_data2 = (item['hit_window'], (item['record_length_hit'] - item['hit_end']), (item['record_length_hit'] - item['hit_start']))    
+                    link_data2 = (item['hit_window'], (item['record_length_hit'] - item['hit_end']), (item['record_length_hit'] - item['hit_start']))
                 gv.add_link(link_data1, link_data2, normal_color, inverted_color, alpha, curve=True)
         fig = gv.plotfig()
-        gv.set_colorbar(fig, bar_colors=["#7570B3ff", "#C87137ff", "#008423ff"], alpha=1, vmin=0, vmax=100, bar_height= 1.4/len(windows), bar_bottom=1, bar_label="Coservation", bar_labelsize=13)
-        fig.savefig(output_filepath, dpi=1200) 
+        gv.set_colorbar(fig, bar_colors=['#7570B3ff', '#C87137ff', '#008423ff'], alpha=1, vmin=0, vmax=100, bar_height=1.4/len(windows), bar_label="Conservation", bar_labelsize=13)    
+        fig.savefig(output_filepath) 
 
 #################################################################################
 #################################################################################
@@ -1055,16 +1042,15 @@ genomes_list = get_list_genomes(args.genomes_dir)
     
 ## generating Genbank files
 print("[5.2]" + print_datetime(), 'Generating Genbank Files for the Windows')
-generating_windows_genbanks(final_window, req_hits_by_contig, opt_hits_by_contig, genomes_list, f"{args.out}/windows_genbanks")
+window_dictionary = generating_windows_genbanks(final_window, req_hits_by_contig, opt_hits_by_contig, genomes_list, f"{args.out}/windows_genbanks")
 
 ## making table for windows and optional hits                                                                                                                
-flattened_req_hits_by_contig, flattened_opt_hits_by_contig = making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv')
+flattened_req_hits_by_contig, flattened_opt_hits_by_contig = making_windows_and_optional_table_hits(f"{args.out}/windows_genbanks", req_hits_by_contig, opt_hits_by_contig, f'{args.out}/windows_genbanks/windows.tsv', window_dictionary)
 
 ## making protein database for the windows
 with tempfile.NamedTemporaryFile(dir=args.out, prefix='allvall_proteins_', suffix='.faa', mode='w', delete=False) as allvall_proteins:
     print("[6]" + print_datetime(), 'Generating the Protein Database from the Windows Genbanks')
-    dbfaa_from_gb_dir(f"{args.out}/windows_genbanks", allvall_proteins.name)
-
+    dbfaa_from_gb_dir(f"{args.out}/windows_genbanks", allvall_proteins.name, window_dictionary)
 ## making diamond database for the windows
 with tempfile.NamedTemporaryFile(dir=f"{args.out}/windows_genbanks", prefix='dmnd_db_', suffix='.dmnd', mode='w', delete=False) as dmnd_db:
     print("[7]" + print_datetime(), 'Creating Diamond Database')
@@ -1096,20 +1082,24 @@ if len(final_window) !=	1:
 ## calculating locus conservation percentage
 percentages = calculating_gator_conservation_percentages(f"{args.out}/presence_absence")
 
-## making the gator conservation figures                                                                                                   
-print("[13]" + print_datetime(), 'Generating the Gator Conservation Figures')
-windows, req_loci, opt_loci = gator_conservation_plot(f"{args.out}/windows_genbanks/", flattened_req_hits_by_contig, flattened_opt_hits_by_contig, percentages, f"{args.out}/gator_conservation_plots")
+## getting data to genomeviz
+windows, req_loci, opt_loci = dictionary_to_genomeviz(window_dictionary, append_loci_window_list, flattened_req_hits_by_contig, flattened_opt_hits_by_contig)
+
+## making the gator conservation figures
+if args.no_conservation_figs is not True:
+    print("[13]" + print_datetime(), 'Generating the Gator Conservation Figures')
+    gator_conservation_plot(windows, req_loci, opt_loci, percentages, f"{args.out}/gator_conservation_plots") 
 
 ## ordering windows based on gator focal scores
-if len(final_window) != 1:
+if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
     ordered_windows, ordered_windows_w_focal, ordering_windows_by_GFS = ordering_windows_by_GFSs(f"{args.out}/concatenated_scores/concatenated_GFS.csv")
 
 ## parsing the percent identity of all vs all windpows
-if len(final_window) != 1:
+if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
     windows_identity, all_hits = parsing_diamond_identity(dmnd_out_allvall.name)
 
-## making the window neithborhood figures
-if len(final_window) != 1:
+## making the window neighborhood figures
+if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
     print("[14]" + print_datetime(), 'Generating the Windows Neighborhoods Figures')
     making_gator_windows_neighborhood_figures(windows, ordered_windows,  ordered_windows_w_focal, windows_identity,f"{args.out}/gator_neighborhoods_plots", percentages, req_loci, opt_loci, ordering_windows_by_GFS)
     
