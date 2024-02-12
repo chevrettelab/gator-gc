@@ -949,6 +949,8 @@ def map_aa_gene(aa_start, aa_end, gene_start, gene_end, strand):
     elif strand == '-1':
         gene_aa_end = gene_end - (aa_start - 1) * 3
         gene_aa_start = gene_aa_end - aa_length * 3
+    gene_aa_start = max(0, gene_aa_start)
+
     return gene_aa_start, gene_aa_end
 
 def making_gator_windows_neighborhood_figures(windows: Dict, ordered_window: Dict,  ordered_windows_w_focal: Dict, windows_identity: Dict, directory_output: str, percentages: Dict, req_loci: List, opt_loci: List, ordering_windows_by_GFS) -> None:
