@@ -1,4 +1,4 @@
-from setuptools import setup,find_packages
+from setuptools import setup, find_packages
 
 VERSION = '0.9.0'
 DESCRIPTION = 'GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters'
