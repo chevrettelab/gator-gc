@@ -46,7 +46,7 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
 
-MODULAR_DOMAINS_HMMDB = resource_filename(__name__, 'flat/modular_domains.hmmdb')
+MODULAR_DOMAINS_HMMDB = resource_filename(__name__, 'gator-gc/flat/modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 REQUIRED_DISTANCE_FACTOR = 1000
 WINDOW_EXTENSION_FACTOR = 1000
