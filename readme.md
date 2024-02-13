@@ -43,8 +43,6 @@ pip install .
 Before utilizing gator-gc, it's necessary to execute pre-gator-gc to obtain the the diamond database, and the modular domain table output.
 
 ```
-pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases
-
 optional arguments:
   -h, --help            show this help message and exit
 
@@ -60,7 +58,7 @@ Output Options:
   --out OUT             Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.
 ``` 
 
-Now we can run gator-gc to identify the gator windows. Again use example/genomes/ for --genomes_dir, example/proteins/req.faa for required proteins, and example/proteins/opt.faa for optional proteins. --gator_databases corresponds with output_name_gator_databases.
+Now we can run gator-gc to identify the gator windows. 
 
 ```
 optional arguments:
