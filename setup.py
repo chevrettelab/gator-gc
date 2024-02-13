@@ -9,6 +9,6 @@ setup(
     author_email="jcedielbecerra@ufl.edu",
     description=DESCRIPTION,
     packages=['gator-gc'],
-    package_data={"flat": ["modular_domains.hmmdb"]},
+    #package_data={"flat": ["modular_domains.hmmdb"]},
     scripts=['bin/gator-gc', 'bin/pre-gator-gc'])
 
