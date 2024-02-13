@@ -45,9 +45,7 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
 
-CURRENT_SCRIPT_PATH = os.path.realpath(__file__)
-CURRENT_DIRECTORY = os.path.dirname(CURRENT_SCRIPT_PATH)
-MODULAR_DOMAINS_HMMDB = os.path.join(CURRENT_DIRECTORY, 'flat', 'modular_domains.hmmdb')
+MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(__file__), 'flat', 'modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 REQUIRED_DISTANCE_FACTOR = 1000
 WINDOW_EXTENSION_FACTOR = 1000
