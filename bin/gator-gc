@@ -12,6 +12,7 @@ import tempfile
 import argparse
 import seaborn as sns
 import multiprocessing
+import gator_gc.flat
 import matplotlib.pyplot as plt
 import scipy.cluster.hierarchy as sch
 
@@ -45,7 +46,7 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
 
-MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
+MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(gator_gc.flat.__file__),'modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 REQUIRED_DISTANCE_FACTOR = 1000
 WINDOW_EXTENSION_FACTOR = 1000

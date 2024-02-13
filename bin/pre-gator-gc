@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import argparse
 import numpy as np
+import gator_gc.flat
 import multiprocessing
 
 from Bio.Seq import Seq
@@ -17,7 +18,7 @@ from typing import List, Set, Dict
 from pkg_resources import resource_filename
 
 ## Define constants
-MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
+MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(gator_gc.flat.__file__), 'modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 VERSION = 'v1.0.0'
 DESCRIPTION = """
