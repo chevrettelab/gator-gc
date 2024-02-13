@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup,find_packages
 
 VERSION = '0.9.0'
 DESCRIPTION = 'GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters'
@@ -8,7 +8,7 @@ setup(
     author="José D. D. Cediel-Becerra",
     author_email="jcedielbecerra@ufl.edu",
     description=DESCRIPTION,
-    packages=['gator-gc'],
-    #package_data={"flat": ["modular_domains.hmmdb"]},
+    packages=find_packages(),
+    package_data={"": ["modular_domains.hmmdb"]},
     scripts=['bin/gator-gc', 'bin/pre-gator-gc'])
 
