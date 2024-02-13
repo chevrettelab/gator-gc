@@ -8,4 +8,6 @@ setup(
     author="José D. D. Cediel-Becerra",
     author_email="jcedielbecerra@ufl.edu",
     description=DESCRIPTION,
+    packages=['gator-gc'],
+    package_data={"": ["*.hmmdb*"]},
     scripts=['bin/gator-gc', 'bin/pre-gator-gc'])
