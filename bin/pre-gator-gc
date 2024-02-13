@@ -17,7 +17,9 @@ from typing import List, Set, Dict
 from pkg_resources import resource_filename
 
 ## Define constants
-MODULAR_DOMAINS_HMMDB = resource_filename(__name__, 'gator-gc/flat/modular_domains.hmmdb')
+CURRENT_SCRIPT_PATH = os.path.realpath(__file__)
+CURRENT_DIRECTORY = os.path.dirname(CURRENT_SCRIPT_PATH)
+MODULAR_DOMAINS_HMMDB = os.path.join(CURRENT_DIRECTORY, 'flat', 'modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 
 VERSION = 'v1.0.0'
