@@ -15,7 +15,6 @@ from Bio.Seq import Seq
 from Bio import SeqIO
 from datetime import datetime
 from typing import List, Set, Dict
-from pkg_resources import resource_filename
 
 ## Define constants
 MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(gator_gc.flat.__file__), 'modular_domains.hmmdb')
