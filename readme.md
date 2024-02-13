@@ -30,8 +30,8 @@ Installation can be performed via conda and should take ~5 minutes
 git clone https://github.com/chevrettelab/gator-gc.git
 cd gator-gc/
 
-# 2. create conda environment using yaml file and activate it:
-conda env create -f gator-gc_env.yml
+# 2. create conda environment using yaml file and activate it. Use mamba instead of conda for faster installation:
+conda env create -f gator-gc_env.yml or mamba env create -f gator-gc_env.yml
 conda activate gator-gc
 
 # 3. install the python package
