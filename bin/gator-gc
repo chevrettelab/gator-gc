@@ -21,9 +21,10 @@ from scipy.stats import norm
 from operator import itemgetter
 from datetime import datetime
 from pygenomeviz import GenomeViz
-from typing import List, Set, Dict, Tuple
 from matplotlib.patches import Patch 
 from scipy.spatial.distance import pdist
+from typing import List, Set, Dict, Tuple
+from pkg_resources import resource_filename
 from scipy.cluster.hierarchy import dendrogram, linkage
 
 
@@ -44,7 +45,8 @@ MODULE_TYPE = {'Condensation_LCL': 'NRPS-C',
                'PKS_KS': 'PKS-KS',
                'Iterative-KS': 'PKS-KS',
                'PKS_AT': 'PKS-AT'}
-MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
+
+MODULAR_DOMAINS_HMMDB = resource_filename(__name__, 'flat/modular_domains.hmmdb')
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 REQUIRED_DISTANCE_FACTOR = 1000
 WINDOW_EXTENSION_FACTOR = 1000
