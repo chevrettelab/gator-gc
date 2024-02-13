@@ -10,74 +10,106 @@ GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC a
 - Developer: José D. D. Cediel-Becerra
 - Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette
 - Afiliation: Microbiology & Cell Science Deparment, University of Florida
-- Please contact me at jcedielbecerra@ufl.edu if you have any questions
+- Please contact José at jcedielbecerra@ufl.edu if there are any issues
 
 ## Features
 
-- **Targeted Search:** Efficiently search for specific key (required) and tailoring (optional) enzymes within BGCs and/or genes in genomic islands
-- **Screening for modular domains:** User input proteins file will be screened to identify modular domains (NRPSs and PKSs)
-- **Modular domains are treated differently:** NRPSs and PKSs will be searched using the HMMs profiles used by antiSMASH
-- **Customizable Parameters:** Fine-tune search parameters (i.e., required/optional proteins, assembly with ALL required proteins, user-defined intergenic distance between required proteins ) to enhance specificity to define the GATOR windows
-- **GATOR Scores:** Novel score to compare GATOR windows with specific focal windows implementing an enzyme-aware scoring system 
-- **GATOR Conservation:** Gene cluster figure where the color of the genes are based on required and optional proteins, and their transparency depends on the  presence of the genes in the GATOR windows 
-- **GATOR Neighborhoods:** Genomic neighborhoods containing all the GATOR windows, which are sorted based on the GATOR scores. Each GATOR window will have a neighborhood figure. Homology between genes are ilustrated by a gray bar. 
+- **Targeted Search:** Conduct targeted searches for essential key enzymes and optional tailor enzymes within Biosynthetic Gene Clusters (BGCs) and genomic islands, streamlining the discovery process
+- **Modular Domain Screening:** Automatically screen user-provided protein files to identify critical modular domains, such as Non-Ribosomal Peptide Synthetases (NRPSs) and Polyketide Synthases (PKSs), using state-of-the-art HMM profiles from antiSMASH for unparalleled precision
+- **Customizable Parameters:**  Customize search parameters to include required and optional proteins, ensure complete assembly with all necessary proteins, and define specific distances between required proteins. This customization enhances the specificity of GATOR window identification, offering tailored analysis to meet research needs
+- **GATOR Focal Scores:** Employ a novel enzyme-aware scoring system to accurately compare GATOR windows against targeted focal windows. This approach ensures precise evaluation of genomic contexts and enzyme functionalities
+- **GATOR Conservation:**  Generate dynamic gene cluster diagrams that visually differentiate between required and optional proteins using color coding. Transparency levels indicate the gene's presence within GATOR windows, providing a clear visual representation of gene conservation
+- **GATOR Neighborhoods:** Visualize each GATOR window's genomic neighborhood with organized tracks based on GATOR focal scores. Homology between genes is intuitively illustrated with gray bars, facilitating easy understanding of genetic relationships and conservation
+
+## Instalation
+
+Installation can be performed via conda and should take ~5 minutes
+
+```bash
+# 1. clone the repository:
+git clone https://github.com/chevrettelab/gator-gc.git
+cd gator-gc/
+
+# 2. create conda environment using yaml file and activate it:
+conda env create -f gator-gc_env.yml
+conda activate gator-gc
+
+# 3. install the python package
+pip install .
+```
 
 ## Usage
-Before using GATOR-GC, we need run PRE-GATOR-GC in order to get the proteins, dmnd database and the modular domtblout.
+
+Before utilizing gator-gc, it's necessary to execute pre-gator-gc to obtain the the diamond database, and the modular domain table output.
 
 ```
-pre-gator-gc --genomes_dir /my_genomes --proteins name_for_proteins.faa --dmnd_database name_for_dmnd_database.dmnd --modular_domtblout name_for_modular_domtblout.txt --e_value 1e-4 --out my_output_folder
+pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases
+
 optional arguments:
   -h, --help            show this help message and exit
-  --genomes_dir GENOMES_DIR
-                        Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
-  --proteins PROTEINS   Name for the precompiled protein database (.faa) of genomes_dir.
-  --dmnd_database DMND_DATABASE
-                        Name for the precompiled diamond database (.dnmd).
+
+Input Options:
+  --genomes_dir GENOMES_DIR [GENOMES_DIR ...]
+                        Directory(ies) name(s) containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
+
+HMMER Options:
   --e_value E_VALUE     E-value threshold  wanted for hmmsearch (default: 1e-4).
-  --modular_domtblout MODULAR_DOMTBLOUT
-                        Name for the precomputed hmmsearch domain table for modular domains
   --threads THREADS     CPUs wanted for hmmsearch (default: all available).
+
+Output Options:
   --out OUT             Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.
 ``` 
 
-```
-gator-gc --required req.faa --optional opt.faa --genomes_dir my_genomes/ --proteins my_proteins.faa --dmnd_database my_dmnd_database.dmnd --modular_domtblout my_modular_domtblout.txt --intergenic_distance 86 --window_extension 10 --out my_folder_output
+Now we can run gator-gc to identify the gator windows. Again use example/genomes/ for --genomes_dir, example/proteins/req.faa for required proteins, and example/proteins/opt.faa for optional proteins. --gator_databases corresponds with output_name_gator_databases.
 
+```
 optional arguments:
   -h, --help            show this help message and exit
+
+Input Options:
   --required REQUIRED   Query protein fasta file containing required proteins.
   --optional OPTIONAL   Query protein fasta file containing optional proteins.
-  --genomes_dir GENOMES_DIR
-                        Directory name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
-  --proteins PROTEINS   Precompiled protein database (.faa) of genomes_dir to search against.
-  --dmnd_database DMND_DATABASE
-                        Precompiled diamond database (.dnmd) to search against.
-  --modular_domtblout MODULAR_DOMTBLOUT
-                        Precomputed hmmsearch domain table for modular domains against the precompiled protein database.
+  --genomes_dir GENOMES_DIR [GENOMES_DIR ...]
+                        Directory containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.
+  --gator_databases GATOR_DATABASES
+                        Folder containing the pre-gator-gc databases (.faa and .domtblout)
+
+Diamond Options:
   --threads THREADS     CPUs wanted for diamond search and hmmsearch (default: all CPUs available).
   --query_cover QUERY_COVER
                         Protein percent query cover for diamond search (default: 70).
   --identity IDENTITY   Protein percent identity for diamond search (default: 35).
+
+HMMER Options:
   --e_value E_VALUE     E-value threshold  wanted for hmmsearch (default: 1e-4).
-  --intergenic_distance INTERGENIC_DISTANCE
+
+GATOR-GC Options:
+  --required_distance REQUIRED_DISTANCE
                         Distance in kilobases between required genes (default: 86 kb)
   --window_extension WINDOW_EXTENSION
                         Extension in kilobases from the start and end positions of the windows (default: 10 kb)
+
+Output Options:
   --out OUT             Output directory name that will have GATOR-GC results
+  --no_conservation_figs
+                        Gator conservation figures will not be created
+  --no_neighborhoods_figs
+                        Gator neighborhoods figures will not be created
+
 ```
 
 ## Example
 
 Let's explore an example involving the enzymes responsible for the production of prodigiosin and prodigiosin-like compounds, categorizing them as required and optional. Subsequently, we will define the taxonomic scope of the search, focusing  on a couple genomes from *Streptomyces*, *Serratia*, *Pseudoalteromonas*, and *Hallela*.
-The inital step involves using PRE-GATOR-GC to build the protein database. This includes making the Diamond database and creating the modular domains domtblout table (NRPS/PKS/Hybrids from the whole genomes using the modular profiles used by antiSMASH). We can do this as simple as this command line arguments:   
+The inital step involves using pre-gator-gc:
 
 ```
-python pre-gator-gc.py --genomes_dir example/genomes/ --proteins proteins.faa --dmnd_database database.dmnd --modular_domtblout modular.domtblout --threads 4 --out example/pre_gator_data
+pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases
 ```
 
-With this foundation in place, we can proceed to use GATOR-GC to search gene clusters (a.k.a GATOR windows) harboring the wanted genes. We can do it running this arguments:
+With this foundation in place, we can proceed to use gator-gc to search gene clusters (a.k.a GATOR windows) harboring the wanted genes. We can do it running this arguments:
 
 ```
-python gator-gc.py --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins example/pre_gator_data/proteins.faa --dmnd_database example/pre_gator_data/database.dmnd --modular_domtblout example/pre_gator_data/modular.domtblout --threads 5 --out example/prodigiosin
+gator-gc --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins my_proteins.faa --gator_databases output_name_gator_databases --out results
+
 ```
