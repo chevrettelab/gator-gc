@@ -108,6 +108,6 @@ pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases
 With this foundation in place, we can proceed to use gator-gc to search gene clusters (a.k.a GATOR windows) harboring the wanted genes. We can do it running this arguments:
 
 ```
-gator-gc --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --proteins my_proteins.faa --gator_databases output_name_gator_databases --out results
+gator-gc --required example/proteins/req.faa --optional example/proteins/opt.faa --genomes_dir example/genomes/ --gator_databases output_name_gator_databases --out results
 
 ```
