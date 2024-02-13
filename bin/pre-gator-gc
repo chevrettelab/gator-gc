@@ -17,7 +17,7 @@ from typing import List, Set, Dict
 from pkg_resources import resource_filename
 
 ## Define constants
-MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(__file__), 'flat', 'modular_domains.hmmdb')
+MODULAR_DOMAINS_HMMDB = 'flat/modular_domains.hmmdb'
 GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
 VERSION = 'v1.0.0'
 DESCRIPTION = """
