@@ -1,0 +1,16 @@
+#                                                                            --- full sequence --- -------------- this domain -------------   hmm coord   ali coord   env coord
+# target name        accession   tlen query name           accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
+#------------------- ---------- ----- -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
+pigI                 -            490 AMP-binding          PF00501.23   417   1.1e-81  263.2   0.2   1   1   2.2e-82   1.3e-81  262.9   0.2     2   417    13   395    12   395 0.84 -
+pigI                 -            490 A-OX                 -            780   9.5e-56  177.8   0.2   1   2   3.6e-25   2.1e-24   74.1   0.1     1   193    33   211    33   219 0.80 -
+pigI                 -            490 A-OX                 -            780   9.5e-56  177.8   0.2   2   2   5.2e-34   3.1e-33  103.3   0.0   570   779   210   418   205   419 0.84 -
+#
+# Program:         hmmsearch
+# Version:         3.1b2 (February 2015)
+# Pipeline mode:   SEARCH
+# Query file:      /home/jcedielbecerra/miniconda3/lib/python3.9/site-packages/gator_gc/flat/modular_domains.hmmdb
+# Target file:     /mnt/clab1/GATOR-GC/20230922-gator_dev/gator-gc/example/prodigiosin_results/all_merged_queries_0smjr2kv.faa
+# Option settings: hmmsearch -o /dev/null --domtblout /mnt/clab1/GATOR-GC/20230922-gator_dev/gator-gc/example/prodigiosin_results/all_merged_queries__oa9jhoj.domtbl --noali --domE 0.0001 --cpu 80 /home/jcedielbecerra/miniconda3/lib/python3.9/site-packages/gator_gc/flat/modular_domains.hmmdb /mnt/clab1/GATOR-GC/20230922-gator_dev/gator-gc/example/prodigiosin_results/all_merged_queries_0smjr2kv.faa 
+# Current dir:     /mnt/clab1/GATOR-GC/20230922-gator_dev/gator-gc
+# Date:            Fri Feb 16 10:26:55 2024
+# [ok]
