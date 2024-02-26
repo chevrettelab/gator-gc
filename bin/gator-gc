@@ -22,7 +22,8 @@ from scipy.stats import norm
 from operator import itemgetter
 from datetime import datetime
 from pygenomeviz import GenomeViz
-from matplotlib.patches import Patch 
+from matplotlib.patches import Patch
+from Bio.SeqFeature import CompoundLocation
 from scipy.spatial.distance import pdist
 from typing import List, Set, Dict, Tuple
 from scipy.cluster.hierarchy import dendrogram, linkage
@@ -394,22 +395,66 @@ def get_list_genomes(genomes_dirs: List) -> List:
             for directory_path in directories_paths:
                 genomes_list.extend(glob.glob(os.path.join(directory_path, genome_wildcard_pattern)))
     return genomes_list
-                        
-def processing_qualifier(items, feat, genome):
-    for item in items:
-        if "locus_tag" in feat.qualifiers and feat.qualifiers["locus_tag"][0] == item["locus"]:
-            update_qualifiers(feat, item)
-        elif "protein_id" in feat.qualifiers and feat.qualifiers["protein_id"][0] == item["locus"]:
-            update_qualifiers(feat, item)
 
-def update_qualifiers(feat, item):
-    feat.qualifiers["gator_query"] = [item["query_type"]]
+def update_qualifiers(sub_feat, item):
+    """Updates the qualifiers of a feature based on the item information."""
+    sub_feat.qualifiers["gator_query"] = [item["query_type"]]
     if item["is_nrps"]:
-        feat.qualifiers["gator_nrps"] = True
+        sub_feat.qualifiers["gator_nrps"] = True
     if item["is_pks"]:
-        feat.qualifiers["gator_pks"] = True
+        sub_feat.qualifiers["gator_pks"] = True
     if not item["is_nrps"] and not item["is_pks"]:
-        feat.qualifiers["gator_hit"] = [item["query_protein"]]        
+        sub_feat.qualifiers["gator_hit"] = [item["query_protein"]]
+        
+def processing_qualifier(items, sub_feat):
+    """Processes items to update feature qualifiers accordingly."""
+    for item in items:
+        if "locus_tag" in sub_feat.qualifiers and sub_feat.qualifiers["locus_tag"][0] == item["locus"]:
+            update_qualifiers(sub_feat, item)
+        elif "protein_id" in sub_feat.qualifiers and sub_feat.qualifiers["protein_id"][0] == item["locus"]:
+            update_qualifiers(sub_feat, item)
+
+def process_windows_records(genome, base_names, contig, max_end, min_start):
+    if genome not in base_names:
+        print(f"Gator Window {genome} not found in the genomes directory.")
+        sys.exit(1)
+    try:
+        with open(base_names[genome], 'r') as gf:
+            found = False
+            for rec in SeqIO.parse(gf, 'genbank'):
+                if rec.id == contig:
+                    found = True
+                    if max_end > len(rec):
+                        max_end = len(rec)
+                    for feat in rec.features:
+                        if feat.type == "CDS":
+                            if feat.location.start <= (0 + EDGE_THRESHOLD) or feat.location.end >= (len(rec) - EDGE_THRESHOLD):
+                                feat.qualifiers["contig_edge"] = True
+                            else:
+                                feat.qualifiers["contig_edge"] = False
+                    return rec[min_start:max_end]
+            if not found:
+                print(f"Window contig {contig} not found in {genome}.")
+    except Exception as e:
+        print(f"Error processing Gator window {genome}: {e}")
+        sys.exit(1)
+    print("No valid record processed.")
+    sys.exit(1)
+                            
+def get_translation_qualifier(sub_feat, sub_seq):
+    try:
+        if isinstance(sub_feat.location, CompoundLocation):
+            return
+        if 'translation' in sub_feat.qualifiers:
+            seq = sub_feat.qualifiers['translation'][0]
+        else:
+            if sub_feat.location.strand == 1:
+                seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end]).translate())
+            else:
+                seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end].reverse_complement()).translate())
+            sub_feat.qualifiers["translation"] = [seq]
+    except Exception as e:
+        print(f"Warning: Skipping {sub_feat.location} due to missing translation. Error: {e}")
 
 def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Dict, opt_hits_by_contig: Dict, genomes_list: List, output_directory: str) -> None:
     ## What function does:
@@ -421,6 +466,8 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
      # None
     window_count = 1
     window_dictionary = {}
+    base_names = {os.path.basename(path): path for path in genomes_list}
+    os.makedirs(output_directory, exist_ok=True)
     for windows in final_window:
         start_positions, end_positions = [], []
         for window in windows:
@@ -428,57 +475,33 @@ def generating_windows_genbanks(final_window: List[Dict], req_hits_by_contig: Di
             genome, contig = parsing_gci[0], parsing_gci[1]
             start_positions.append(parsing_start)
             end_positions.append(parsing_end)
-        min_start, max_end = (min(start_positions) - (args.window_extension * WINDOW_EXTENSION_FACTOR)), (max(end_positions) + (args.window_extension * WINDOW_EXTENSION_FACTOR))
+        min_start = (min(start_positions) - (args.window_extension * WINDOW_EXTENSION_FACTOR))
+        max_end = (max(end_positions) + (args.window_extension * WINDOW_EXTENSION_FACTOR))
         if min_start < 0:
             min_start = 0
-        base_names = {os.path.basename(path): path for path in genomes_list}
-        if genome in base_names:
-            with open(base_names[genome], 'r') as gf:
-                for rec in SeqIO.parse(gf, 'genbank'):
-                    if rec.id == contig:
-                        if max_end > len(rec):
-                            max_end = len(rec)
-                        for feat in rec.features:
-                            if feat.type == "CDS":
-                                if feat.location.start <= (0 + EDGE_THRESHOLD) or feat.location.end >= (len(rec) - EDGE_THRESHOLD):
-                                    feat.qualifiers["contig_edge"] = True
-                                else:
-                                    feat.qualifiers["contig_edge"] = False
-                        sub_seq = rec[min_start:max_end]
-                        for sub_feat in sub_seq.features:
-                            if sub_feat.type == "CDS":
-                                if "locus_tag" in sub_feat.qualifiers:
-                                    sub_feat.qualifiers['locus_tag'][0] += "|_|" + genome
-                                elif "protein_id" in sub_feat.qualifiers:
-                                    sub_feat.qualifiers['protein_id'][0] += "|_|" + genome
-                                sub_feat.qualifiers["gator_query"] = ["na"]
-                                sub_feat.qualifiers["gator_nrps"] = False
-                                sub_feat.qualifiers["gator_pks"] = False
-                                sub_feat.qualifiers["gator_hit"] = ["na"]
-                                for key in req_hits_by_contig:
-                                    processing_qualifier(req_hits_by_contig[key], sub_feat, genome)
-                                for key in opt_hits_by_contig:
-                                    processing_qualifier(opt_hits_by_contig[key], sub_feat, genome)
-                                try:
-                                    if 'translation' in sub_feat.qualifiers:
-                                        seq = sub_feat.qualifiers['translation'][0]
-                                    else:
-                                        if sub_feat.location.strand == 1:
-                                            seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end]).translate())
-                                        else:
-                                            seq = str(Seq(sub_seq.seq[sub_feat.location.start:sub_feat.location.end].reverse_complement()).translate())
-                                        sub_feat.qualifiers["translation"] = [seq]
-                                except Exception as e:
-                                    print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
-            sub_seq_list = []
-            os.makedirs(output_directory, exist_ok=True)
-            basename, extension = os.path.splitext(genome)
-            file_name = f"window_{window_count}--{basename}.gbff"
-            output_file = os.path.join(output_directory, file_name)
-            with open(output_file, 'w') as outf:
-                SeqIO.write(sub_seq, outf, 'genbank')
-            window_dictionary[genome] = {'sub_seq': sub_seq, 'window': window_count}
-            window_count += 1
+        sub_seq = process_windows_records(genome, base_names, contig, max_end, min_start)
+        for sub_feat in sub_seq.features:
+            if sub_feat.type == "CDS":
+                if "locus_tag" in sub_feat.qualifiers:
+                    sub_feat.qualifiers['locus_tag'][0] += "|_|" + genome
+                elif "protein_id" in sub_feat.qualifiers:
+                    sub_feat.qualifiers['protein_id'][0] += "|_|" + genome
+                sub_feat.qualifiers["gator_query"] = ["na"]
+                sub_feat.qualifiers["gator_nrps"] = False
+                sub_feat.qualifiers["gator_pks"] = False
+                sub_feat.qualifiers["gator_hit"] = ["na"]
+                for key in req_hits_by_contig:
+                    processing_qualifier(req_hits_by_contig[key], sub_feat)
+                for key in opt_hits_by_contig:
+                    processing_qualifier(opt_hits_by_contig[key], sub_feat)
+                get_translation_qualifier(sub_feat, sub_seq)
+        basename, extension = os.path.splitext(genome)
+        file_name = f"window_{window_count}--{basename}.gbff"
+        output_file = os.path.join(output_directory, file_name)
+        window_dictionary[genome] = {'sub_seq': sub_seq, 'window': window_count}
+        window_count += 1
+        with open(output_file, 'w') as outf:
+            SeqIO.write(sub_seq, outf, 'genbank')
     return window_dictionary
 
 def making_windows_and_optional_table_hits(genbank_dir: str, req_hits_by_contig: Dict, opt_hits_by_contig: Dict, windows_tsv: str, window_dictionary) -> List:
@@ -675,7 +698,11 @@ def generating_clustermap(concatenated_GFSs: str, output_dir: str) -> None:
     matrix_gcfs = matrix_gcfs.fillna(0)
     distances = pdist(matrix_gcfs, metric='euclidean')
     linkage_matrix = linkage(distances, method='complete')
-    fig = plt.figure(figsize=(10, 10))
+    base_size = 10
+    scaling_factor = len(matrix_gcfs) / 30
+    proportional_size = max(base_size * scaling_factor, base_size)
+    fig = plt.figure(figsize=(proportional_size, proportional_size))
+    #fig = plt.figure(figsize=(80, 80)) 
     ax2 = fig.add_axes([0.028,0.05,0.24,0.65])
     labels = matrix_gcfs.index.tolist()
     dend2 = dendrogram(linkage_matrix, labels=labels, link_color_func=lambda x: 'black', color_threshold=np.inf, orientation='left')
@@ -684,7 +711,8 @@ def generating_clustermap(concatenated_GFSs: str, output_dir: str) -> None:
     ax2.axis('off')
     ax2.invert_yaxis()
     ax3 = fig.add_axes([0.27,0.05,0.68,0.65])
-    cax = sns.heatmap(matrix_gcfs.iloc[dend2['leaves'], dend2['leaves']], ax=ax3, linewidths=1, linecolor='black', cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=False, cbar=False)
+    font_size = 35 / np.sqrt(len(matrix_gcfs))
+    cax = sns.heatmap(matrix_gcfs.iloc[dend2['leaves'], dend2['leaves']], ax=ax3, linewidths=1, linecolor='black', cmap='viridis', cbar_kws={'label': 'Gator Focal Score', 'shrink': 1}, xticklabels=False, cbar=False, annot_kws={"size": font_size})
     ax3.yaxis.tick_right()
     ax3.yaxis.set_label_position("right")
     ax3.set_yticklabels(ax3.get_yticklabels(), rotation=0)
@@ -1082,7 +1110,7 @@ req_hits_by_contig, all_required_proteins = grouping_user_req_opt_proteins_by_co
 opt_hits_by_contig, all_optional_proteins = grouping_user_req_opt_proteins_by_contig(q, 'opt')
 
 ## checking distance between loci and presence of all required user proteins
-print("[5]" + print_datetime(), 'Checking Presence for All Required User Proteins and Evaluating Intergenic Distance Betweeen Loci')
+print("[5]" + print_datetime(), 'Checking Presence for All Required User Proteins and Evaluating Required Distance Betweeen Loci')
 final_window = checking_distance_bw_loci(req_hits_by_contig, all_required_proteins)
 
 ## getting the genomes list
