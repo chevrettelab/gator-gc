@@ -14,6 +14,7 @@ import multiprocessing
 from Bio.Seq import Seq
 from Bio import SeqIO
 from datetime import datetime
+from Bio.SeqFeature import CompoundLocation
 from typing import List, Set, Dict
 
 ## Define constants
@@ -37,7 +38,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette                                                                               
 Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
-Please contact Jose at jcedielbecerra@ufl.edu if you have any issues                                                                                       
+Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
 Version: """+VERSION
 
 np.random.seed(53000)
@@ -108,6 +109,24 @@ def replace_dashes_filenames_genomes_dir(gfiles):
         new_gfiles.append(new_filepath)
     return new_gfiles
 
+def get_cds_translation(feat, rec):
+    seq = None
+    try:
+        if isinstance(feat.location, CompoundLocation):
+            print(f"Ignoring {feat.location} due to compound location.")
+            return
+        if 'translation' in feat.qualifiers:
+            seq = feat.qualifiers['translation'][0]
+        else:
+            if feat.location.strand == 1:
+                seq = str(Seq(rec.seq[feat.location.start:feat.location.end]).translate())
+            else:
+                seq = str(Seq(rec.seq[feat.location.start:feat.location.end].reverse_complement()).translate())
+            feat.qualifiers["translation"] = [seq]
+    except Exception as e:
+        print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
+    return seq
+
 def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
     ## What function does:
      # Parse out protein sequences from GenBank files and writes them to a FASTA file.
@@ -123,23 +142,12 @@ def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
                 for rec in SeqIO.parse(in_fh, 'genbank'):
                     for feat in rec.features:
                         if feat.type == 'CDS':
-                            name, seq = None, None
+                            name = None
                             if 'locus_tag' in feat.qualifiers:
                                 name = "|-|".join([feat.qualifiers['locus_tag'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
                             elif 'protein_id' in feat.qualifiers:
                                 name = "|-|".join([feat.qualifiers['protein_id'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
-                            try:
-                                if 'translation' in feat.qualifiers:
-                                    seq = feat.qualifiers['translation'][0]
-                                else:
-                                    if feat.location.strand == 1:
-                                        seq = str(Seq(rec.seq[feat.location.start:feat.location.end]).translate())
-                                    else:
-                                        seq = str(Seq(rec.seq[feat.location.start:feat.location.end].reverse_complement()).translate())
-                                    print(f"Warning: {feat.location} does not have sequence, but it was fixed")
-                            except Exception as e:
-                                print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
-                                seq = None
+                            seq = get_cds_translation(feat, rec)
                             if name is not None and seq is not None:
                                 out_fh.write('>'+name+"\n"+seq+"\n")
 
