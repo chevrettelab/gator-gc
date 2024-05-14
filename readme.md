@@ -8,8 +8,7 @@ GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC a
 
 ## Authors
 
-- Developer: José D. D. Cediel-Becerra
-- Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette
+- Code, design, and development: José D. D. Cediel-Becerra,  Marc G. Chevrette
 - Afiliation: Microbiology & Cell Science Deparment, University of Florida
 - Please contact José at jcedielbecerra@ufl.edu if there are any issues
 
