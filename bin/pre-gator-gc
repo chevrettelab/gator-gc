@@ -7,20 +7,26 @@ import glob
 import subprocess
 import tempfile
 import argparse
-import numpy as np
+import logging
 import gator_gc.flat
 import multiprocessing
 
-from Bio.Seq import Seq
 from Bio import SeqIO
-from datetime import datetime
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.SeqFeature import SeqFeature
 from Bio.SeqFeature import CompoundLocation
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Optional
 
-## Define constants
+## Constants
 MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(gator_gc.flat.__file__), 'modular_domains.hmmdb')
-GENBANK_EXTENSIONS = ['*.gbk', '*.gbff', '*.gb']
-VERSION = 'v1.0.0'
+
+GENBANK_EXTENSIONS = [
+    '*.gbk',
+    '*.gbff',
+    '*.gb'
+]
+VERSION = 'v0.9.0'
 DESCRIPTION = """
                                                                                                                                                                      
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /---                         
@@ -36,65 +42,201 @@ DESCRIPTION = """
 
 GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters                                                                               
 Developer: José D. D. Cediel-Becerra
-Code reviewers: Valérie de Crécy-Lagard and Marc G. Chevrette                                                                               
 Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
 Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
 Version: """+VERSION
 
-np.random.seed(53000)
-stime = time.time()
-
-def parse_arguments():
+def parse_pre_gator_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
+
     input_group = parser.add_argument_group("Input Options")
+    input_group.add_argument(
+        '--genomes_dir',
+        type=str,
+        nargs='+',
+        help='Directories containing GenBank files (*.gbff/*.gbk/*.gb). '
+             'You can specify multiple directories separated by spaces. '
+             'Directories can be specified with or without wildcards.',
+        required=True
+    )
+
     hmmer_group = parser.add_argument_group("HMMER Options")
+    hmmer_group.add_argument(
+        '--e_value',
+        type=float,
+        default=1e-4,
+        help='E-value threshold for HMMER hmmsearch (default: 1e-4).',
+        required=False
+    )
+    hmmer_group.add_argument(
+        '--threads',
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help='Number of CPU threads to use for hmmsearch (default: all available threads).',
+        required=False
+    )
+
     out_group = parser.add_argument_group("Output Options")
-    input_group.add_argument('--genomes_dir', type=str, nargs='+', help='Directory(ies) name containing the Genbanks (*.gbff/*.gbk/*.gb) genomes.', required=True)
-    hmmer_group.add_argument('--e_value', type=float, default=1e-4, help='E-value threshold  wanted for hmmsearch (default: 1e-4).', required=False)    
-    hmmer_group.add_argument('--threads', type=int, default= int(multiprocessing.cpu_count()), help='CPUs wanted for hmmsearch (default: all available).', required=False)
-    out_group.add_argument('--out', type=str, help='Output directory name that will contain the proteins, the dmnd_database, and the modular domtblout table.', required=True)
+    out_group.add_argument(
+        '--out',
+        type=str,
+        help='Directory where the output files (proteins, DIAMOND database, and modular domtblout table) will be saved.',
+        required=True
+    )
+
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        default=False,
+        help='Enable verbose output (default: False).',
+        required=False
+    )
+    
     return parser.parse_args()
 
-def print_datetime():
-    return "[" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "]"
+def elapsed_time(
+        stime: float
+) -> None:
+    """                                                                                                                                                                                       
+    Time used to process PRE-GATOR-GC.                                                                                                                                                            
+                                                                                                                                                                                              
+    Args:                                                                                                                                                                                     
+        stime (float): Start time of the process.                                                                                                                                             
+                                                                                                                                                                                              
+    Returns:                                                                                                                                                                                  
+        None                                                                                                                                                                                  
+    """
+    etime = time.time()
+    elapsed_time = etime - stime
 
-def create_directory(directory_name: str) -> None:
-    ## What function does:                                                                                                                                
-     # Create the directory to save the PRE-GATOR-GC output                                                                                                     
-    ## Arguments:
-     # directory_name (str): Name for the directory
-    ## Returns:
-     # None: This function Just create the directory
-    if '--' in directory_name:
-        sys.stderr.write("ERROR: Directory name "+directory_name+" contains an invalid character for GATOR-GC. Do not use '--'\n")
-        sys.exit(1)
+    if elapsed_time < 60:
+        time_unit = "seconds"
+        ftime = round(elapsed_time, 2)
+    elif elapsed_time < 3600:
+        time_unit = "minutes"
+        ftime = round(elapsed_time / 60, 2)
+    else:
+        time_unit = "hours"
+        ftime = round(elapsed_time / 3600, 2)
+    logging.info(f"Execution time: {ftime} {time_unit}")
+
+stime = time.time()
+
+class CustomFormatter(logging.Formatter):
+    def __init__(self, fmt=None, datefmt=None):
+        super().__init__(fmt, datefmt)
+        self.counter = 0
+
+    def format(self, record):
+        self.counter += 1
+        record.custom_counter = f"[{self.counter}]"
+        return super().format(record)
+
+log_format = '%(custom_counter)s - %(asctime)s - %(levelname)s - %(message)s'
+formatter = CustomFormatter(log_format)
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logging.basicConfig(level=logging.INFO, handlers=[handler])
+
+def create_directory(
+        directory_name: str,
+        verbose: bool = False
+) -> None:
+    """                                                                                                                                                                                       
+    Create a directory to save the GATOR-GC output.                                                                                                                                           
+                                                                                                                                                                                              
+    Arguments:                                                                                                                                                                                
+    directory_name (str): Name of the directory to create.                                                                                                                                    
+    verbose (bool): Flag to control verbose logging.                                                                                                                                          
+                                                                                                                                                                                              
+    Raises:                                                                                                                                                                                   
+    ValueError: If the directory name contains invalid characters or is empty.                                                                                                                
+    FileExistsError: If the directory already exists.                                                                                                                                         
+    OSError: If the directory creation fails due to OS-level error.                                                                                                                           
+    """
+    if not directory_name:
+        logging.error("ERROR: Directory name cannot be empty.")
+        raise ValueError("Directory name cannot be empty")
+
+    if '--' in directory_name or any(char in directory_name for char in '<>:"\\|?*'):
+        logging.error(f"ERROR: Directory name {directory_name} contains invalid characters.")
+        raise ValueError("Invalid directory name")
+
+    if os.path.exists(directory_name):
+        logging.error(f"ERROR: Directory {directory_name} already exists")
+        raise FileExistsError("Directory already exists")
+
     try:
         os.mkdir(directory_name)
-        print("[1]" + print_datetime(), f"The {directory_name} Directory was Created")
-    except FileExistsError:
-        sys.stderr.write("ERROR: Directory "+directory_name+" Already Exists"+"\n")
-        sys.exit(1)
-    except Exception as e:
-        sys.stderr.write("ERROR: Failed to Make the "+directory_name+" Directory"+"\n")
-        sys.stderr.write(str(e))
-        sys.exit(1)
+        if verbose:
+            logging.info(f"The {directory_name} directory was created successfully.")
+    except OSError as e:
+        logging.error(f"ERROR: Failed to create the {directory_name} directory due to OS-level error: {e}")
+        raise
 
-def get_list_genomes(genomes_dir):
-    gfiles = []
-    for pattern in genomes_dir:
-        dir_pattern, file_pattern = os.path.split(pattern)
-        if not file_pattern:
-            for geno_ext in GENBANK_EXTENSIONS:
-                dirs = glob.glob(dir_pattern)
-                for dirg in dirs:
-                    gfiles.extend(glob.glob(os.path.join(dirg, geno_ext)))
+def get_list_genomes(
+        genomes_dirs: List[str],
+        verbose: bool = False
+) -> List[str]:
+    """                                                                                                                                                                                       
+                                                                                                                                                                                              
+    Retrieves a list of genome file paths based on provided directory paths and optional wildcard patterns.                                                                                   
+    It handles multiple directory inputs and supports wildcard patterns for file matching.                                                                                                    
+                                                                                                                                                                                              
+    Args:                                                                                                                                                                                     
+    genomes_dirs (List[str]): A list containing directory paths which may include wildcards to specify files.                                                                                 
+    verbose (bool): Flag to enable logging of detailed execution messages.                                                                                                                    
+    Returns:                                                                                                                                                                                  
+    List[str]: A list containing the full paths to genome files matching the input patterns. If a directorydoes not contain a wildcard, all genome files in the directory are included based \
+on predefined extensions.                                                                                                                                                                     
+    """
+    genomes_list = []
+    for directory in genomes_dirs:
+        dir_path, wildcard_pattern = os.path.split(directory)
+        if not dir_path:
+            dir_path = '.'
+        expanded_dirs = glob.glob(dir_path)
+        if not expanded_dirs:
+            logging.warning(f"No directories found matching: {dir_path}")
+        if not wildcard_pattern:
+            for expanded_dir in expanded_dirs:
+                found_files = False
+                for genome_extension in GENBANK_EXTENSIONS:
+                    matched_files = glob.glob(os.path.join(expanded_dir, genome_extension))
+                    genomes_list.extend(matched_files)
+                    if matched_files:
+                        found_files = True
+                if not found_files:
+                    logging.warning(f"No genome files found in: {expanded_dir} with predefined extensions {GENBANK_EXTENSIONS}")
         else:
-            dirs = glob.glob(dir_pattern)
-            for dirg in dirs:
-                gfiles.extend(glob.glob(os.path.join(dirg, file_pattern)))
-    return gfiles
+            for expanded_dir in expanded_dirs:
+                matched_files = glob.glob(os.path.join(expanded_dir, wildcard_pattern))
+                genomes_list.extend(matched_files)
+                if not matched_files:
+                    logging.warning(f"No files found matching pattern {wildcard_pattern} in: {expanded_dir}")
+                elif verbose:
+                    logging.debug(f"Found files matching pattern {wildcard_pattern} in: {expanded_dir}")
+    if not genomes_list:
+        logging.error("No genome files found matching the provided patterns and directories.")
+    if verbose:
+        logging.info(f"Total genome files found: {len(genomes_list)}")
 
-def replace_dashes_filenames_genomes_dir(gfiles):
+    return genomes_list
+
+def replace_dashes_filenames_genomes_dir(
+        gfiles: List[str],
+        verbose: bool = False
+) -> List[str]:
+    """
+    Replaces double dashes ('--') with underscores ('_') in filenames within the provided list of file paths.
+    
+    Args:
+        gfiles (List[str]): List of genome file paths to be checked and potentially renamed.
+        verbose (bool): If True, detailed logging information will be provided.
+    
+    Returns:
+        List[str]: List of updated file paths with double dashes replaced by underscores.
+    """
     new_gfiles = []
     for file_path in gfiles:
         directory = os.path.dirname(file_path)
@@ -102,91 +244,221 @@ def replace_dashes_filenames_genomes_dir(gfiles):
         if '--' in filename:
             new_filename = filename.replace('--', '_')
             new_filepath = os.path.join(directory, new_filename)
-            os.rename(file_path, new_filepath)
-            print(f"Renamed file to avoid the '--' string: '{file_path}' to '{new_filepath}'")
+            try:
+                os.rename(file_path, new_filepath)
+                if verbose:
+                    logging.info(f"Renamed file to avoid the '--' string: '{file_path}' to '{new_filepath}'")
+            except OSError as e:
+                logging.error(f"Error renaming file '{file_path}' to '{new_filepath}': {e}")
+                continue
         else:
-            new_filepath = file_path    
+            new_filepath = file_path
         new_gfiles.append(new_filepath)
     return new_gfiles
 
-def get_cds_translation(feat, rec):
+def add_trailing_N(
+        sequence: str,
+        verbose: bool = False
+) -> str:
+    """Add trailing 'N' characters to make the sequence length a multiple of three.
+
+    Args:
+        sequence (str): The DNA sequence to be padded.
+        verbose (bool): Flag to enable logging of detailed execution messages.
+
+    Returns:
+        str: The padded DNA sequence.
+    """
+    if len(sequence) % 3 != 0:
+        padding_length = 3 - len(sequence) % 3
+        sequence += 'N' * padding_length
+        if verbose:
+            logging.debug(f"Added {padding_length} 'N' characters to sequence to make its length a multiple of three.")
+    return sequence
+
+def calculate_translation_for_feature(
+        feature: SeqFeature,
+        window_record: SeqRecord,
+        verbose: bool = False
+) -> str:
+    """
+    Calculates the amino acid translation for a given genomic feature based on its DNA sequence.                                                                                          
+  
+    Args:                                                                                                                                                                                                         
+        feature (SeqFeature): The feature for which to calculate the translation.   
+        window_record (SeqRecord): The record from which the feature's sequence will be extracted.
+        verbose (bool): Flag to enable logging of detailed execution messages.
+                                                                             
+    Returns:                                                                                                                                                                                                      
+        str: The translated amino acid sequence. If an error occurs during the translation process, logs a warning and returns None.   
+    """
     seq = None
     try:
-        if isinstance(feat.location, CompoundLocation):
-            print(f"Ignoring {feat.location} due to compound location.")
-            return
-        if 'translation' in feat.qualifiers:
-            seq = feat.qualifiers['translation'][0]
+        if isinstance(feature.location, CompoundLocation) or 'translation' in feature.qualifiers:
+            if verbose:
+                logging.debug(f"Translation found in qualifiers for feature at {feature.location}. Using existing translation.")
+            return feature.qualifiers['translation'][0]
+
+        if feature.location.strand == 1:
+            seq = str(feature.extract(window_record).seq)
         else:
-            if feat.location.strand == 1:
-                seq = str(Seq(rec.seq[feat.location.start:feat.location.end]).translate())
-            else:
-                seq = str(Seq(rec.seq[feat.location.start:feat.location.end].reverse_complement()).translate())
-            feat.qualifiers["translation"] = [seq]
+            seq = str(feature.extract(window_record).seq.reverse_complement())
+
+        seq = add_trailing_N(seq, verbose)
+        seq = str(Seq(seq).translate(to_stop=True))
+
+        feature.qualifiers["translation"] = [seq]
+        if verbose:
+            logging.debug(f"Calculated translation for feature at {feature.location}.")
+
+        return seq
+
     except Exception as e:
-        print(f"Warning: Skipping {feat.location} due to missing translation. Error: {e}")
-    return seq
+        logging.warning(f"Warning: Skipping {feature.location} due to error in translation: {e}")
+        return None
 
-def dbfaa_from_gb_dir(genbank_files: List, db_faa: str) -> None:
-    ## What function does:
-     # Parse out protein sequences from GenBank files and writes them to a FASTA file.
-    ## Arguments:
-     # genomes_dir (str): paths containing GenBank files (*.gbk or *.gbff).
-     # db_faa (str): output file name for the generated FASTA file containing protein sequences that will become dmnd db.
-    ## Returns:
-     #  None  
-    with open(db_faa, 'w') as out_fh:
-        for file_path in genbank_files:
-            genome = os.path.basename(file_path)
-            with open(file_path, 'r') as in_fh:
-                for rec in SeqIO.parse(in_fh, 'genbank'):
-                    for feat in rec.features:
-                        if feat.type == 'CDS':
-                            name = None
-                            if 'locus_tag' in feat.qualifiers:
-                                name = "|-|".join([feat.qualifiers['locus_tag'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
-                            elif 'protein_id' in feat.qualifiers:
-                                name = "|-|".join([feat.qualifiers['protein_id'][0]+"|_|" + genome, str(int(feat.location.start)), str(int(feat.location.end)), rec.id])
-                            seq = get_cds_translation(feat, rec)
-                            if name is not None and seq is not None:
-                                out_fh.write('>'+name+"\n"+seq+"\n")
-
-def create_diamond_database(db_faa: str, database_name: str) -> None:
-    ## What function does
-     # Create a dmnd db using the provided FASTA file.
-    ## Arguments:
-     # db_faa (str): Path to the input FASTA file containing protein sequences.
-     # database_name (str): Name of the dmnd db to be created.
-    ## Returns:
-     # None: This function does not return anything. It simply creates the dmnd db file.
-    command = ' '.join(['diamond',
-                        'makedb',
-                        '--in', db_faa,
-                        '--quiet',
-                        '-d', database_name,
-                        '--threads', str(args.threads)])
-    subprocess.run([command], shell=True)
+        
+def dbfaa_from_gb_dir(
+    genbank_files: List[str],
+    db_faa: str,
+    verbose: bool = False
+) -> None:
+    """Parses out protein sequences from GenBank files and writes them to a FASTA file.
     
-def run_hmmsearch(hmmdb: str, query: str, out: str, cpu: int, e_value: float) -> None:
-    ## What function does:
-     # Run the hmmsearch pipeline to search for modular domain hits
-    ## Arguments:
-     # hmmdb (str): A string for the HMMs modular domains (nrps, pks) database name
-     # query (str): A string for the query protein file name
-     # out (str): A string for the modular domtblout table name
-     # cpu (int): A integer for the number of CPUs wanted to run hmmsearch
-     # e_value (float): A float for the E-value threshold wanted to run hmmsearch
-    ## Returns:
-     #  None: This function does not return anything. It simply creates the modular domtblout table
-    command = ' '.join(['hmmsearch',
-                        '--domtblout', out,
-                        '--cpu', str(cpu),
-                        '--domE', str(e_value),
-                        '--noali',
-                        '-o /dev/null',
-                        hmmdb,
-                        query])
-    subprocess.run([command], shell=True)
+    Args:
+        genbank_files (List[str]): List of paths containing GenBank files (*.gbk or *.gbff).
+        db_faa (str): Output file name for the generated FASTA file containing protein sequences.
+        verbose (bool, optional): If True, logs additional information.
+    
+    Returns:
+        None
+    """
+    try:
+        with open(db_faa, 'w') as out_fh:
+            for file_path in genbank_files:
+                genome = os.path.basename(file_path)
+                with open(file_path, 'r') as in_fh:
+                    for rec in SeqIO.parse(in_fh, 'genbank'):
+                        for feat in rec.features:
+                            if feat.type == 'CDS':
+                                name = None
+                                if 'locus_tag' in feat.qualifiers:
+                                    name = "|-|".join([
+                                        feat.qualifiers['locus_tag'][0] + "|_|" + genome,
+                                        str(int(feat.location.start)),
+                                        str(int(feat.location.end)),
+                                        rec.id
+                                    ])
+                                elif 'protein_id' in feat.qualifiers:
+                                    name = "|-|".join([
+                                        feat.qualifiers['protein_id'][0] + "|_|" + genome,
+                                        str(int(feat.location.start)),
+                                        str(int(feat.location.end)),
+                                        rec.id
+                                    ])
+                                
+                                seq = calculate_translation_for_feature(feat, rec, verbose)
+                                if name is not None and seq is not None:
+                                    out_fh.write('>' + name + "\n" + seq + "\n")
+        if verbose:
+            logging.info(f"Successfully created the gator protein database to {db_faa}")
+    except Exception as e:
+        logging.error(f"Error processing GenBank files: {e}")
+        raise RuntimeError(f"Failed to process GenBank files and write to {db_faa}. Error: {e}")
+
+def create_diamond_database(
+        db_faa: str,
+        database_name: str,
+        need_return: bool,
+        threads: int,
+        verbose: bool = False
+) -> Optional[str]:
+    """                                                                                                                                                                                       
+    Creates a DIAMOND database from a provided FASTA file.                                                                                                                                    
+                                                                                                                                                                                              
+    Args:                                                                                                                                                                                     
+        db_faa (str): Path to the input FASTA file containing protein sequences.                                                                                                              
+        database_name (str): Name of the DIAMOND database to be created.                                                                                                                      
+        need_return (bool): If True, the function returns the name of the database created.                                                                                                   
+        threads (int): Number of threads to use for DIAMOND database creation.                                                                                                                
+        verbose (bool): Flag to enable logging of detailed execution messages.                                                                                                                
+                                                                                                                                                                                              
+    Returns:                                                                                                                                                                                  
+        Optional[str]: The name of the database if need_return is True, otherwise None.                                                                                                       
+                                                                                                                                                                                              
+    Raises:                                                                                                                                                                                   
+        RuntimeError: If the DIAMOND command fails.                                                                                                                                           
+    """
+    try:
+        command = [
+            'diamond', 'makedb',
+            '--in', db_faa,
+            '--db', database_name,
+            '--quiet',
+            '--threads', str(threads)
+        ]
+        subprocess.run(command, check=True)
+        if verbose:
+            logging.info(f"Successfully created the gator DIAMOND database to {database_name}")
+
+        if need_return:
+            return database_name
+
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to create DIAMOND database from {db_faa}: {e}")
+        raise RuntimeError(f"DIAMOND database creation failed: {e}")
+
+def run_hmmsearch(
+        hmmdb: str,
+        query: str,
+        out: str,
+        cpu: int,
+        e_value: float,
+        verbose: bool = False
+) -> None:
+    """                                                                                                                                                                                       
+    Runs the hmmsearch pipeline to search for modular domain hits in proteins.                                                                                                                
+                                                                                                                                                                                              
+    Arguments:                                                                                                                                                                                
+    hmmdb (str): Path to the HMMs modular domains (nrps, pks) database.                                                                                                                       
+    query (str): Path to the query protein file.                                                                                                                                              
+    out (str): Output file name for the modular domtblout table.                                                                                                                              
+    cpu (int): Number of CPUs allocated for running hmmsearch.                                                                                                                                
+    e_value (float): E-value threshold for hmmsearch.                                                                                                                                         
+    verbose (bool): Flag to control verbose logging.                                                                                                                                   
+
+    Returns:                                                                                                                                                                                  
+    None: This function does not return anything, it executes hmmsearch and writes output to a file.                                                                                          
+                                                                                                                                                                                              
+    Raises:                                                                                                                                                                                   
+    ValueError: If any input argument is invalid.                                                                                                                                             
+    RuntimeError: If the hmmsearch command fails.                                                                                                                                             
+    """
+    if not os.path.isfile(hmmdb):
+        raise ValueError(f"HMM database file {hmmdb} does not exist.")
+    if not os.path.isfile(query):
+        raise ValueError(f"Query protein file {query} does not exist.")
+    command = [
+        'hmmsearch',
+        '--domtblout', out,
+        '--cpu', str(cpu),
+        '--domE', str(e_value),
+        '--noali',
+        '-o', '/dev/null',
+        hmmdb,
+        query
+    ]
+    try:
+        subprocess.run(command, check=True)
+        if verbose:
+            logging.info(f"Successfully created the gator domtblout database to {out}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"hmmsearch failed with error: {e}")
+        raise RuntimeError(f"hmmsearch failed: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        raise RuntimeError(f"An unexpected error occurred: {e}")
+
 
 #################################################################################
 #################################################################################
@@ -195,43 +467,33 @@ def run_hmmsearch(hmmdb: str, query: str, out: str, cpu: int, e_value: float) ->
 #################################################################################
 ############################# BEGIN MAIN BLOCK ##################################
 
-## print description
+## parse gator arguments
+args = parse_pre_gator_arguments()
+
+## print gator to start
 print(DESCRIPTION)
 
-## parse arguments
-args = parse_arguments()
-
 ## make output directory 
-create_directory(args.out)
+create_directory(args.out, verbose=args.verbose)
 
 ## getting list of genomes
+genomes_list = get_list_genomes(args.genomes_dir, verbose=args.verbose)
 
-genomes_list = get_list_genomes(args.genomes_dir)
-
-## replace dashes in filenames
-new_genomes_list = replace_dashes_filenames_genomes_dir(genomes_list)
+## replace dashes in genomes filenames
+new_genomes_list = replace_dashes_filenames_genomes_dir(genomes_list, verbose=args.verbose)
                       
-## making protein database 
-print("[2]" + print_datetime(), 'Generating the Protein Database')
-dbfaa_from_gb_dir(new_genomes_list, f'{args.out}/{args.out}.faa')
+## making pre-gator-gc faa database
+basename = os.path.basename(args.out)
+output_faa = os.path.join(args.out, f'{basename}.faa')
+dbfaa_from_gb_dir(new_genomes_list, output_faa, verbose=args.verbose)
 
-## making diamond database 
-print("[3]" + print_datetime(), 'Generating the Diamond  Database')
-create_diamond_database(f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.dmnd')
+## making pre-gator-gc diamond database
+output_dmnd = os.path.join(args.out, f'{basename}.dmnd')
+create_diamond_database(output_faa, output_dmnd, False, args.threads, verbose=args.verbose)
+    
+## making pre-gator-gc domtblout database
+output_domtblout = os.path.join(args.out, f'{basename}.domtblout')
+run_hmmsearch(MODULAR_DOMAINS_HMMDB, output_faa, output_domtblout, args.threads, args.e_value, verbose=args.verbose)
 
-## running hmmsearch
-print("[4]" + print_datetime(), 'Making the Modular Domtblout Table for the Protein Database') 
-run_hmmsearch(MODULAR_DOMAINS_HMMDB, f'{args.out}/{args.out}.faa', f'{args.out}/{args.out}.domtblout', args.threads, args.e_value)
-
-## elapsed time 
-etime = time.time()
-ftime = round((etime - stime) / 60, 2)
-if ftime < 1:
-    ftime *= 60
-    time_unit = "seconds"
-elif ftime < 60:
-    time_unit = "minutes"
-else:
-    ftime /= 60
-    time_unit = "hours"
-print("[5]" + print_datetime(), f"Elapsed time: {ftime:.1f} {time_unit}")
+## elapsed time                                                                                                                                    
+elapsed_time(stime)
