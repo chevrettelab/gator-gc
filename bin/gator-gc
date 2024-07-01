@@ -86,10 +86,7 @@ Version:"""+VERSION
 
 
 def parse_gator_arguments():
-    parser = argparse.ArgumentParser(
-        description=DESCRIPTION,
-        formatter_class=argparse.RawTextHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
 
     input_group = parser.add_argument_group("Input Options")
     input_group.add_argument(
@@ -132,14 +129,14 @@ def parse_gator_arguments():
         '--query_cover', 
         type=float, 
         default=70, 
-        help='Minimum percent query cover for diamond search. (Default: 70%)', 
+        help='Minimum percent query cover for diamond search. (Default: 70)', 
         required=False
     )
     alignment_group.add_argument(
         '--identity', 
         type=float, 
         default=35, 
-        help='Minimum percent identity for diamond search. (Default: 35%)', 
+        help='Minimum percent identity for diamond search. (Default: 35)', 
         required=False
     )
 
