@@ -84,112 +84,122 @@ Afiliation: Microbiology & Cell Science Deparment, University of Florida
 Please contact José at jcedielbecerra@ufl.edu if you have any issues
 Version:"""+VERSION
 
-
 def parse_gator_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
 
     input_group = parser.add_argument_group("Input Options")
     input_group.add_argument(
-        '--required', 
-        type=str, 
-        help='Path to the query protein FASTA file containing required proteins. (Required)', 
+        '-rq',
+        type=str,
+        help='Path to the query protein FASTA file containing required proteins.',
+        metavar='',
         required=True
     )
     input_group.add_argument(
-        '--optional', 
-        type=str, 
-        help='Path to the query protein FASTA file containing optional proteins. (Optional)', 
+        '-op',
+        type=str,
+        help='Path to the query protein FASTA file containing optional proteins.',
+        metavar='',
         required=False
     )
     input_group.add_argument(
-        '--genomes_dir', 
-        type=str, 
-        nargs='+', 
-        help='Directory containing the Genbank files (*.gbff/*.gbk/*.gb) (Required). '
-              'You can specify multiple directories separated by spaces. '
-              'Directories can be specified with or without wildcards.', 
+        '-g',
+        type=str,
+        nargs='+',
+        help='Directory containing the Genbank files (*.gbff/*.gbk/*.gb).'
+             'You can specify multiple directories separated by spaces. '
+             'Directories can be specified with or without wildcards.',
+        metavar='',
         required=True
     )
     input_group.add_argument(
-        '--gator_databases', 
-        type=str, 
-        help='Directory containing the PRE-GATOR-GC databases (.dmnd and .domtblout files). (Required)', 
+        '-d',
+        type=str,
+        help='Directory containing the PRE-GATOR-GC databases (.dmnd and .domtblout files). (Required)',
+        metavar='',
         required=True
     )
 
     alignment_group = parser.add_argument_group("Diamond Options")
     alignment_group.add_argument(
-        '--threads', 
-        type=int, 
-        default=multiprocessing.cpu_count(), 
-        help='Number of CPUs to use for diamond search and hmmsearch. (Default: all available CPUs)', 
+        '-t',
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help='Number of CPUs to use for diamond search and hmmsearch. (Default: all available CPUs)',
+        metavar='',
         required=False
     )
     alignment_group.add_argument(
-        '--query_cover', 
-        type=float, 
-        default=70, 
-        help='Minimum percent query cover for diamond search. (Default: 70)', 
+        '-qc',
+        type=float,
+        default=70,
+        help='Minimum percent query cover for diamond search. (Default: 70)',
+        metavar='',
         required=False
     )
     alignment_group.add_argument(
-        '--identity', 
-        type=float, 
-        default=35, 
-        help='Minimum percent identity for diamond search. (Default: 35)', 
+        '-idt',
+        type=float,
+        default=35,
+        help='Minimum percent identity for diamond search. (Default: 35)',
+        metavar='',
         required=False
     )
 
     hmmer_group = parser.add_argument_group("HMMER Options")
     hmmer_group.add_argument(
-        '--e_value', 
-        type=float, 
-        default=1e-4, 
-        help='E-value threshold for hmmsearch. (Default: 1e-4)', 
+        '-e',
+        type=float,
+        default=1e-4,
+        help='E-value threshold for hmmsearch. (Default: 1e-4)',
+        metavar='',
         required=False
     )
 
     gator_group = parser.add_argument_group("GATOR-GC Options")
     gator_group.add_argument(
-        '--required_distance', 
-        type=float, 
-        default=86, 
-        help='Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb)', 
+        '-rd',
+        type=float,
+        default=86,
+        help='Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb)',
+        metavar='',
         required=False
     )
     gator_group.add_argument(
-        '--window_extension', 
-        type=int, 
-        default=10, 
-        help='Extension in kilobases from the start and end positions of the gator windows. (Default: 10 kb)', 
+        '-we',
+        type=int,
+        default=10,
+        help='Extension in kilobases from the start and end positions of the gator windows. (Default: 10 kb)',
+        metavar='',
         required=False
     )
 
     out_group = parser.add_argument_group("Output Options")
     out_group.add_argument(
-        '--out', 
-        type=str, 
-        help='Directory to save GATOR-GC results. (Required)', 
+        '-o',
+        type=str,
+        help='Directory to save GATOR-GC results.',
+        metavar='',
         required=True
     )
     out_group.add_argument(
-        '--no_conservation_figs', 
-        action='store_true', 
-        help='Disable creation of GATOR conservation figures.', 
+        '-nc',
+        action='store_true',
+        help='Disable creation of GATOR conservation figures.',
         required=False
     )
     out_group.add_argument(
-        '--no_neighborhoods_figs', 
-        action='store_true', 
-        help='Disable creation of GATOR neighborhoods figures.', 
+        '-nn',
+        action='store_true',
+        help='Disable creation of GATOR neighborhoods figures.',
         required=False
     )
 
     parser.add_argument(
-        '--verbose', 
-        action='store_true', 
-        default=False, 
-        help='Enable verbose output. (Default: False)', 
+        '-v',
+        action='store_true',
+        default=False,
+        help='Enable verbose output. (Default: False)',
         required=False
     )
 
@@ -988,8 +998,8 @@ def adjust_positions(
     Returns:
     Tuple[int, int]: Adjusted minimum start position and maximum end position of the genomic windows.
     """
-    min_start = min(start_positions) - (args.window_extension * window_extension_factor) 
-    max_end = max(end_positions) + (args.window_extension * window_extension_factor)
+    min_start = min(start_positions) - (args.we * window_extension_factor) 
+    max_end = max(end_positions) + (args.we * window_extension_factor)
     return max(min_start, 0), max_end
 
 def process_windows_records(
@@ -1589,7 +1599,7 @@ def deduplication_for_windows(
             faa_name = os.path.basename(faa).split('.')[0]
             n += 1
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
-            run_diamond(faa, current_dmnddb, diamond_output, args.threads, args.query_cover, args.identity, verbose)
+            run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, verbose)
             os.remove(faa)
             pa, idx_win_map = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, False, False, map_dmnd, verbose)
             os.remove(diamond_output)
@@ -1599,7 +1609,7 @@ def deduplication_for_windows(
                 if verbose:
                     logging.info("All windows have been processed and deduplicated.")
                 break
-            current_dbfaa, current_dmnddb = reduce_databases(current_dbfaa, unq_gfs, temp_dir, n, faa_name, sorted_windows, args.threads, verbose)
+            current_dbfaa, current_dmnddb = reduce_databases(current_dbfaa, unq_gfs, temp_dir, n, faa_name, sorted_windows, args.t, verbose)
             if sorted_windows:
                 biggest_window = sorted_windows.pop(0)
                 next_faa = get_faa(temp_dir, current_dbfaa, faa_name, biggest_window)
@@ -3077,71 +3087,71 @@ print(DESCRIPTION)
 
 ## Make output directory
 create_directory(
-    args.out,
-    verbose=args.verbose
+    args.o,
+    verbose=args.v
 )
 
 ## getting the genomes list
 genomes_list = get_list_genomes(
-    args.genomes_dir,
-    verbose=args.verbose
+    args.g,
+    verbose=args.v
 )
 
 ##defining files/folders outputs
-input_faas_path = os.path.join(args.out, 'faas')
-output_genbanks = os.path.join(args.out, 'windows_genbanks')
+input_faas_path = os.path.join(args.o, 'faas')
+output_genbanks = os.path.join(args.o, 'windows_genbanks')
 output_table_hits = os.path.join(output_genbanks, 'gator_hits.tsv')
-output_pa_tables = os.path.join(args.out, 'presence_absence')
-output_gfs = os.path.join(args.out, 'gator_scores')
-output_concatenated = os.path.join(args.out, 'concatenated_scores')
+output_pa_tables = os.path.join(args.o, 'presence_absence')
+output_gfs = os.path.join(args.o, 'gator_scores')
+output_concatenated = os.path.join(args.o, 'concatenated_scores')
 output_concatenated_gfs = os.path.join(output_concatenated, 'concatenated_gfs.csv')
 output_clustermap = os.path.join(output_concatenated, 'clustermap_gfs.svg')
-output_gator_conser_figs = os.path.join(args.out, 'gator_conservation_plots')
-output_gator_neigh_figs = os.path.join(args.out, 'gator_neighborhoods_plots')
+output_gator_conser_figs = os.path.join(args.o, 'gator_conservation_plots')
+output_gator_neigh_figs = os.path.join(args.o, 'gator_neighborhoods_plots')
 
 ## Initialize query protein dictionary
 q = {}
 q = parse_query_faa(
-    args.required,
+    args.rq,
     'req',
     q
 )
 
-if args.optional is not None:
+if args.o is not None:
     q = parse_query_faa(
-        args.optional,
+        args.op,
         'opt',
         q
     )
 
 ## Create combined required and optional queries fasta
-all_merged_queries = tempfile.NamedTemporaryFile(dir=args.out, prefix='all_merged_queries_', suffix='.faa', mode='w', delete=False)
+all_merged_queries = tempfile.NamedTemporaryFile(dir=args.o, prefix='all_merged_queries_', suffix='.faa', mode='w', delete=False)
 for header in q:
     all_merged_queries.write('>'+header+"\n"+q[header]['seq']+"\n")
 all_merged_queries.close()
 
 ## hmmsearch against PKS/NRPS modular domains and parse results
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='all_merged_queries_', suffix='.domtbl', mode='w', delete=False) as query_modular_domtbl:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='all_merged_queries_', suffix='.domtbl', mode='w', delete=False) as query_modular_domtbl:
     run_hmmsearch(
         MODULAR_DOMAINS_HMMDB,
         all_merged_queries.name,
         query_modular_domtbl.name,
-        args.threads,
-        args.e_value,
-        verbose = args.verbose
+        args.t,
+        args.e,
+        verbose = args.v
     )
     modular_domain_hit = parse_modular_domtblout(
         query_modular_domtbl.name,
-        verbose=args.verbose
+        verbose=args.v
     )
     parse_modular_domain_query_hits(
         modular_domain_hit,
         q,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## Create nonmodular fasta (to be subsequent diamond query)
-nonmodular_queries = tempfile.NamedTemporaryFile(dir=args.out, prefix='non_modular_queries_', suffix='.faa', mode='w', delete=False)
+nonmodular_queries = tempfile.NamedTemporaryFile(dir=args.o, prefix='non_modular_queries_', suffix='.faa', mode='w', delete=False)
 for header in q:
     if not q[header]['is_nrps'] and not q[header]['is_pks']:
         nonmodular_queries.write('>'+header+"\n"+q[header]['seq']+"\n")
@@ -3149,67 +3159,67 @@ nonmodular_queries.close()
 
 ## Getting paths for gator databases
 dmnd_database, domtblout_database = get_dmnd_domtblout_paths(
-    args.gator_databases,
-    verbose=args.verbose
+    args.d,
+    verbose=args.v
 )
 
 ## parse genome modular search
-modular_domain_hit = parse_modular_domtblout(domtblout_database, verbose=args.verbose)
+modular_domain_hit = parse_modular_domtblout(domtblout_database, verbose=args.v)
 q = parse_modular_domain_genome_hits(
     modular_domain_hit,
     q,
-    verbose=args.verbose
+    verbose=args.v
 )
 
 # diamond against nonmodular fasta
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='dmnd_out_', suffix='.txt', mode='w', delete=False) as dmnd_out:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='dmnd_out_', suffix='.txt', mode='w', delete=False) as dmnd_out:
     logging.info(f"Running Diamond with {nonmodular_queries.name} against {dmnd_database}")
     run_diamond(
         nonmodular_queries.name,
         dmnd_database,
         dmnd_out.name,
-        args.threads,
-        args.query_cover,
-        args.identity,
-        verbose=args.verbose
+        args.t,
+        args.qc,
+        args.idt,
+        verbose=args.v
     )
 
 ## parse diamond search
 parse_diamond_search(
     dmnd_out.name,
     q,
-    verbose=args.verbose
+    verbose=args.v
 )
 
 ## grouping query proteins hits by contig
 req_hits_by_contig, all_required_proteins = grouping_user_req_opt_proteins_by_contig(
     q,
     'req',
-    verbose=args.verbose
+    verbose=args.v
 )
 opt_hits_by_contig, all_optional_proteins = grouping_user_req_opt_proteins_by_contig(
     q,
     'opt',
-    verbose=args.verbose
+    verbose=args.v
 )
 
 ## making req and opt lists
 req_opt_locus, req_opt_hits = make_lists_req_opt(
     req_hits_by_contig,
     opt_hits_by_contig,
-    verbose=args.verbose
+    verbose=args.v
 )
 
 ## checking distance between loci and presence of all required user proteins
 final_window = checking_distance_bw_loci(
     req_hits_by_contig,
     all_required_proteins,
-    args.required_distance,
-    verbose=args.verbose
+    args.rd,
+    verbose=args.v
 )
 
 ## generating windows Genbank files and protein database                                                                                                                                 
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='allvall_proteins_', suffix='.faa', mode='w', delete=False) as dbfaa:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='allvall_proteins_', suffix='.faa', mode='w', delete=False) as dbfaa:
     map_pa, map_wc_wi, map_ge, map_dmnd, map_lo_wn, map_win_size = process_windows(
         input_faas_path,
         final_window,
@@ -3219,7 +3229,7 @@ with tempfile.NamedTemporaryFile(dir=args.out, prefix='allvall_proteins_', suffi
         dbfaa,
         req_hits_by_contig,
         opt_hits_by_contig,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## write table hits
@@ -3227,22 +3237,22 @@ prepare_hits_to_write(
     req_opt_hits,
     map_lo_wn,
     output_table_hits,
-    verbose=args.verbose)
+    verbose=args.v)
 
 ## creating the dmnd db for allvall                                                                                                                                                      
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='dmnd_db_', suffix='.dmnd', mode='w', delete=False) as dmnd_db:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='dmnd_db_', suffix='.dmnd', mode='w', delete=False) as dmnd_db:
     create_diamond_database(
         dbfaa.name,
         dmnd_db.name,
         False,
-        args.threads,
-        verbose=args.verbose
+        args.t,
+        verbose=args.v
     )
 
 ## deduplication process and generation of dbfaa with unique windows
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='deduplicate_allvall_proteins_', suffix='.faa', mode='w', delete=False) as newdbfaa:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_allvall_proteins_', suffix='.faa', mode='w', delete=False) as newdbfaa:
     unq_windows = deduplication_for_windows(
-        args.out,
+        args.o,
         dbfaa.name,
         dmnd_db.name,
         map_pa,
@@ -3251,30 +3261,30 @@ with tempfile.NamedTemporaryFile(dir=args.out, prefix='deduplicate_allvall_prote
         newdbfaa.name,
         map_dmnd,
         map_win_size,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## creating dmnd db for deduplicate dbfaa                                                                                                                                                
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='deduplicate_dmnd_db_', suffix='.dmnd', mode='w', delete=False) as newdmnd_db:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_db_', suffix='.dmnd', mode='w', delete=False) as newdmnd_db:
     create_diamond_database(
         newdbfaa.name,
         newdmnd_db.name,
         False,
-        args.threads,
-        verbose=args.verbose
+        args.t,
+        verbose=args.v
     )
 
 ## running diamond for deduplicate data
 pa = {}
-with tempfile.NamedTemporaryFile(dir=args.out, prefix='deduplicate_dmnd_out_', suffix='.dmnd', mode='w', delete=False) as deduplicate_dmnd_out:
+with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_out_', suffix='.dmnd', mode='w', delete=False) as deduplicate_dmnd_out:
     run_diamond(
         newdbfaa.name,
         newdmnd_db.name,
         deduplicate_dmnd_out.name,
-        args.threads,
-        args.query_cover,
-        args.identity,
-        verbose=args.verbose
+        args.t,
+        args.qc,
+        args.idt,
+        verbose=args.v
     )
     pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(
         deduplicate_dmnd_out.name,
@@ -3284,20 +3294,20 @@ with tempfile.NamedTemporaryFile(dir=args.out, prefix='deduplicate_dmnd_out_', s
         True,
         True,
         map_dmnd,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## presence absence tables are created at
 logging.info(f"Gene level presence absence tables for deduplicated gator windows created sucessfully in {output_pa_tables}")
     
 ## parsing the percent identity of all vs all windpows                                                                                                                                   
-if len(final_window) > 1 and not args.no_neighborhoods_figs:
+if len(final_window) > 1 and not args.nn:
 
     ## calculating locus conservation percentage                                                                                                                                         
     percentages = calculating_gator_conservation_percentages(
         pa,
         unq_windows,
-        verbose=args.verbose
+        verbose=args.v
     ) 
 
 ## getting gator focal scores
@@ -3305,13 +3315,13 @@ unq_gfs, itself_comp = {}, {}
 s_gfs = get_gfs(
     pa,
     req_opt_locus,
-    args.out,
+    args.o,
     idx_win_map,
     unq_gfs,
     itself_comp,
     False,
     True,
-    verbose=args.verbose
+    verbose=args.v
 )
 
 ## gator focal scores tables are created at
@@ -3320,7 +3330,7 @@ logging.info(f"Gator focal scores tables for deduplicated gator windows created 
 ## write concatenated file with all gator focal scores
 empty_str = ''
 write_concat_gfs(
-    args.out, s_gfs,
+    args.o, s_gfs,
     idx_win_map,
     empty_str,
     empty_str,
@@ -3334,26 +3344,26 @@ if len(final_window) != 1:
     generating_clustermap(
         output_concatenated_gfs,
         output_clustermap,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## making the gator conservation figures
-if args.no_conservation_figs is not True:
+if args.nc is not True:
     gator_conservation_plot(
         map_ge,
         percentages,
         output_gator_conser_figs,
         unq_windows,
         adaptable_height=False,
-        verbose=args.verbose
+        verbose=args.v
     )
 
 ## ordering windows based on gator focal scores
-if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
+if len(final_window) != 1 and args.nn is not True:
     ordered_windows_w_focal, ordering_windows_by_GFS = ordering_windows_by_GFSs(output_concatenated_gfs)
 
 ## making the window neighborhood figures
-if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
+if len(final_window) != 1 and args.nn is not True:
     make_gator_windows_neighborhood_figures(
         map_ge,
         ordered_windows_w_focal,
@@ -3364,7 +3374,7 @@ if len(final_window) != 1 and args.no_neighborhoods_figs is not True:
         unq_windows,
         all_hits,
         adaptable_height=True,
-        verbose=args.verbose
+        verbose=args.v
     )
     
 ## elapsed time
