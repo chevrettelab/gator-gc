@@ -106,6 +106,8 @@ pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases -v
 ```
 after running pre-gator-gc on this example and using the verbose flag, we will see:
 
+```
+                                                                                                                                                                     
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /---                         
    /--/ ---/--/ -------/ ----/ ---/--/ ---/ --/ ----/ ----/--------/ \----\                                                                    
   ________   _____  __________________  __________         _________________                                                                                
@@ -128,7 +130,7 @@ Version: v0.9.0
 [4] - 2024-07-08 14:51:45,840 - INFO - Successfully created the gator DIAMOND database to output_name_gator_databases/output_name_gator_databases.dmnd
 [5] - 2024-07-08 14:51:59,790 - INFO - Successfully created the gator domtblout database to output_name_gator_databases/output_name_gator_databases.domtblout
 [6] - 2024-07-08 14:51:59,790 - INFO - Execution time: 47.3 seconds
-
+```
 
 With this foundation in place, we can proceed to use gator-gc to search gene clusters (a.k.a GATOR windows) harboring the wanted genes. We can do it running these arguments:
 
