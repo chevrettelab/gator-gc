@@ -2267,7 +2267,7 @@ def write_concat_gfs(
                 for win_index in gfs['sum']:
                     if gfs['gfs'][win_index] == 0:
                         continue
-                    row = [gfs['gfw'], idx_win_map[win_index], f"{gfs['gfs'][win_index]:.2f}"]
+                    row = [gfs['gfw'], idx_win_map[win_index], gfs['gfs'][win_index]]
                     rows.append((gfs['gfs'][win_index], row))
                     if deduplication and n == 1:
                         full_set.add(idx_win_map[win_index][:-5])
