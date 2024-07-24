@@ -2387,29 +2387,35 @@ def calculating_gator_conservation_percentages(
         deduplicate_windows: List[str],
         verbose: bool = False
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Calculate the Gator Conservation Percentages from the presence-absence tables.
-
-    Args:
-        pa_table (Dict[str, Dict]): A dictionary where keys are window identifiers and values are presence-absence data.
-        deduplicate)windows (List[str]): A list of deduplicate windows to process.
-        verbose (bool): If True, enables detailed logging information.
-
-    Returns:
-        Dict[str, Dict[str, float]]: A dictionary with conservation percentages, structured with outer keys as
-                                     Gator Focal Windows, inner keys as loci, and values as conservation percentages.
+    """                                                                                                                                                  
+    Calculate the Gator Conservation Percentages from the presence-absence tables.                                                                       
+                                                                                                                                                         
+    Args:                                                                                                                                                
+        pa_table (Dict[str, Dict]): A dictionary where keys are window identifiers and values are presence-absence data.                                 
+        deduplicate)windows (List[str]): A list of deduplicate windows to process.                                                                       
+        verbose (bool): If True, enables detailed logging information.                                                                                   
+                                                                                                                                                         
+    Returns:                                                                                                                                             
+        Dict[str, Dict[str, float]]: A dictionary with conservation percentages, structured with outer keys as                                           
+                                     Gator Focal Windows, inner keys as loci, and values as conservation percentages.                                    
     """
     percentages = {}
     try:
-        for unq in unq_windows:
+        for unq in deduplicate_windows:
             if unq in pa_table:
                 pa_tables = pa_table[unq]
                 window_genbank = os.path.splitext(os.path.basename(unq))[0]
                 loci = pa_tables['loci'].keys()
                 percentages[window_genbank] = {}
+                valid_rows = []
+                for i in range(len(next(iter(pa_tables['loci'].values())))):
+                    if any(pa_tables['loci'][locus][i] != 0 for locus in loci):
+                        valid_rows.append(i)
                 for locus in loci:
-                    percentage = (pa_tables['loci'][locus].sum() / len(pa_tables['loci'][locus]))
-                    percentages[window_genbank][locus] = percentage
+                    values = [pa_tables['loci'][locus][i] for i in valid_rows]
+                    if values:
+                        percentage = sum(values) / len(values)
+                        percentages[window_genbank][locus] = percentage
         return percentages
     except Exception as e:
         logging.error(f"Error calculating conservation percentages: {e}")
