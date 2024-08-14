@@ -3123,7 +3123,7 @@ q = parse_query_faa(
     q
 )
 
-if args.o is not None:
+if args.op is not None:
     q = parse_query_faa(
         args.op,
         'opt',
