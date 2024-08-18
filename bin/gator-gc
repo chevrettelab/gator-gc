@@ -2712,6 +2712,7 @@ def ordering_windows_by_GFSs(
         raise
 
 def gather_focal_hits(
+        unq: str,
         loci_list_focal: List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]],
         all_hits: Dict[str, Dict[str, float]],
         verbose: bool = False
@@ -2720,6 +2721,7 @@ def gather_focal_hits(
     Gathers focal hits from the provided loci list and all hits dictionary.
 
     Args:
+        unq str(): A string for the focal window name.
         loci_list_focal (List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]]): A list containing all the information about the proteins for the focal windows.
         all_hits (Dict[str, Dict[str, float]]): A dictionary containing all the protein diamond alignment hits in a nested dictionary for each protein.
         verbose (bool): If True, enables detailed logging.
@@ -2738,7 +2740,7 @@ def gather_focal_hits(
                             logging.debug(f"Found focal hits for locus {locusf}: {hlog}")
                         return (hlog, strandf)
         if verbose:
-            logging.info("No focal hits found.")
+            logging.info("No focal ({unq}) hits found.")
         return None
 
     except Exception as e:
@@ -2873,7 +2875,7 @@ def prepare_window_to_genomeviz(
     try:
         window_dict = windows[unq]
         gv = create_genome_viz()
-        hlog, strandf = gather_focal_hits(window_dict["meta_loci"], all_hits, verbose)
+        hlog, strandf = gather_focal_hits(unq, window_dict["meta_loci"], all_hits, verbose)
         track = gv.add_feature_track(window_dict["track_name"], window_dict["record_length"], labelmargin=0.03, linecolor="#333333", linewidth=2)
         making_tracks(track, True, window_dict["meta_loci"], percentages)
         flips = ['False']
