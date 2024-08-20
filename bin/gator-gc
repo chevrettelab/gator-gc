@@ -1932,8 +1932,8 @@ def write_pa_tables(
                 writer.writerow(header)
                 for i, win in enumerate(win_list):
                     row = [win] + [loci[locus][i] for locus in loci]
-                    if any(value != 0 for value in row[1:]):
-                        writer.writerow(row)
+                    #if any(value != 0 for value in row[1:]): 
+                    writer.writerow(row)
             if verbose:
                 logging.debug(f"Successfully wrote file {output_file}")
         except IOError as e:
@@ -2171,8 +2171,8 @@ def write_gfs(gfs, output, focal_window, idx_win_map):
             writer.writerow(header)
             rows = []
             for i, win in enumerate(sum_keys):
-                if gfs['gfs'].get(win, 0) == 0:
-                    continue
+                #if gfs['gfs'].get(win, 0) == 0:
+                    #continue
                 row = [idx_win_map.get(win, win)] + [gfs['loci'][locus][i] for locus in loci_keys] + [gfs['gfw'], gfs['gfs'][win]]
                 rows.append((gfs['gfs'][win], row))
             sorted_rows = sorted(rows, key=itemgetter(0), reverse=True)
@@ -2275,8 +2275,9 @@ def write_concat_gfs(
                 gfs = gfs_dict[focal]
                 rows = []
                 for win_index in gfs['sum']:
-                    if gfs['gfs'][win_index] == 0:
-                        continue
+                    if deduplication: ## this is new
+                        if gfs['gfs'][win_index] == 0:
+                            continue
                     row = [gfs['gfw'], idx_win_map[win_index], gfs['gfs'][win_index]]
                     rows.append((gfs['gfs'][win_index], row))
                     if deduplication and n == 1:
@@ -2733,12 +2734,12 @@ def gather_focal_hits(
         for i, cds_focal in enumerate(loci_list_focal, 1):
             startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
             if gqueryf == 'req':
-                if not gnrpsf and not gpksf:
-                    if locusf in all_hits:
-                        hlog = all_hits[locusf].keys()
-                        if verbose:
-                            logging.debug(f"Found focal hits for locus {locusf}: {hlog}")
-                        return (hlog, strandf)
+                #if not gnrpsf and not gpksf: will return none if all req are modular
+                if locusf in all_hits:
+                    hlog = list(all_hits[locusf].keys())
+                    if verbose:
+                        logging.debug(f"Found focal hits for locus {locusf}: {hlog}")
+                    return (hlog, strandf)
         if verbose:
             logging.info("No focal ({unq}) hits found.")
         return None
@@ -2961,6 +2962,11 @@ def get_max_bitscore_items(
     try:
         current_window = ordered_windows_w_focal[unq][i]
         next_window = ordered_windows_w_focal[unq][i + 1]
+        if next_window not in windows_identity[current_window]:
+            if verbose:
+                logging.debug(f"No homologous genes found between {current_window} and {next_window} based on the -idt and -qc parameters")
+            return max_bitscore_items
+
         for item in windows_identity[current_window][next_window]:
             locus_query = item['locus_query']
             if item["query_nrps"] or item["query_pks"]:
@@ -3282,6 +3288,11 @@ with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_db_', suff
         verbose=args.v
     )
 
+### remove redundant windows from map_pa                                                                
+for rwin in list(map_pa.keys()):
+    if rwin not in unq_windows:
+        map_pa.pop(rwin)
+    
 ## running diamond for deduplicate data
 pa = {}
 with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_out_', suffix='.dmnd', mode='w', delete=False) as deduplicate_dmnd_out:
