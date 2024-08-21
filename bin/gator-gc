@@ -2719,17 +2719,20 @@ def ordering_windows_by_GFSs(
         logging.error(f"Error ordering windows by Gator focal scores: {e}")
         raise
 
+import logging
+from typing import List, Tuple, Dict, Optional
+
 def gather_focal_hits(
-        unq: str,
-        loci_list_focal: List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]],
-        all_hits: Dict[str, Dict[str, float]],
-        verbose: bool = False
+    unq: str,
+    loci_list_focal: List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]],
+    all_hits: Dict[str, Dict[str, float]],
+    verbose: bool = False
 ) -> Optional[Tuple[List[str], str]]:
     """
     Gathers focal hits from the provided loci list and all hits dictionary.
 
     Args:
-        unq str(): A string for the focal window name.
+        unq (str): A string for the focal window name.
         loci_list_focal (List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]]): A list containing all the information about the proteins for the focal windows.
         all_hits (Dict[str, Dict[str, float]]): A dictionary containing all the protein diamond alignment hits in a nested dictionary for each protein.
         verbose (bool): If True, enables detailed logging.
@@ -2737,6 +2740,43 @@ def gather_focal_hits(
     Returns:
         Optional[Tuple[List[str], str]]: A tuple containing a list of focal hits and the strand string for the focal window, or None if no hits are found.
     """
+    try:
+        for i, cds_focal in enumerate(loci_list_focal, 1):
+            startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
+            if gqueryf == 'req':
+                if not gnrpsf and not gpksf:  # Both are False
+                    if locusf in all_hits:
+                        hlog = list(all_hits[locusf].keys())
+                        if verbose:
+                            logging.debug(f"Found focal hits for locus {locusf} where both gnrpsf and gpksf are False: {hlog}")
+                        return (hlog, strandf)
+                elif not gnrpsf or not gpksf:  # Only one is False
+                    if locusf in all_hits:
+                        hlog = list(all_hits[locusf].keys())
+                        if verbose:
+                            logging.debug(f"Found focal hits for locus {locusf} where one of gnrpsf or gpksf is False: {hlog}")
+                        return (hlog, strandf)
+                elif gnrpsf and gpksf:  # Both are True
+                    if locusf in all_hits:
+                        hlog = list(all_hits[locusf].keys())
+                        if verbose:
+                            logging.debug(f"Found focal hits for locus {locusf} where both gnrpsf and gpksf are True: {hlog}")
+                        return (hlog, strandf)
+        if verbose:
+            logging.info(f"No focal ({unq}) hits found.")
+        return None
+    except Exception as e:
+        if verbose:
+            logging.error("Error in gathering focal hits: " + str(e))
+        return None
+
+"""
+def gather_focal_hits(
+        unq: str,
+        loci_list_focal: List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]],
+        all_hits: Dict[str, Dict[str, float]],
+        verbose: bool = False
+) -> Optional[Tuple[List[str], str]]:
     try:
         for i, cds_focal in enumerate(loci_list_focal, 1):
             startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
@@ -2754,7 +2794,7 @@ def gather_focal_hits(
     except Exception as e:
         logging.error(f"Error gathering focal hits: {e}")
         raise RuntimeError(f"Failed to gather focal hits. Error: {e}")
-
+"""
 def flip_windows_genbanks(
         hlog: List[str],
         strandf: str,
