@@ -838,8 +838,15 @@ def checking_all_required_proteins(
     Returns:
         None: The function does not return anything but modifies final_window by appending valid windows.
     """
+    gene_to_protein = {}
+    for data in init_window:
+        gene = data['locus']
+        protein = data['query_protein']
+        if gene not in gene_to_protein:
+            gene_to_protein[gene] = set()
+        gene_to_protein[gene].add(protein)
     present_proteins = {data['query_protein'] for data in init_window}    
-    if all_required_proteins.issubset(present_proteins):
+    if all_required_proteins.issubset(present_proteins) and len(gene_to_protein) >= len(all_required_proteins):
         final_window.append(init_window.copy())
         if verbose:
             logging.debug("Added a new valid window containing all required proteins.")
