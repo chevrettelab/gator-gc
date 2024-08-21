@@ -101,7 +101,7 @@ Let's explore an example involving the enzymes responsible for the production of
 The inital step involves using pre-gator-gc:
 
 ```
-pre-gator-gc --genomes_dir example/genomes/ --out output_name_gator_databases -v
+pre-gator-gc -g example/genomes/ -o output_name_gator_databases -v
 
 ```
 after running pre-gator-gc on this example and using the verbose flag, we will see:
