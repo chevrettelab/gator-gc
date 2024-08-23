@@ -318,7 +318,7 @@ def calculate_translation_for_feature(
         return seq
 
     except Exception as e:
-        logging.warning(f"Warning: Skipping {feature.location} due to error in translation: {e}")
+        logging.info(f"Warning: Skipping {feature.location} due to compound location: {e}")
         return None
 
         
@@ -338,8 +338,9 @@ def dbfaa_from_gb_dir(
         None
     """
     try:
+        total_files = len(genbank_files)
         with open(db_faa, 'w') as out_fh:
-            for file_path in genbank_files:
+            for i, file_path in enumerate(genbank_files):
                 genome = os.path.basename(file_path)
                 with open(file_path, 'r') as in_fh:
                     for rec in SeqIO.parse(in_fh, 'genbank'):
@@ -364,7 +365,12 @@ def dbfaa_from_gb_dir(
                                 seq = calculate_translation_for_feature(feat, rec, verbose)
                                 if name is not None and seq is not None:
                                     out_fh.write('>' + name + "\n" + seq + "\n")
+                if verbose:
+                    progress = (i + 1) / total_files * 100
+                    sys.stdout.write(f"\rCreating protein database: {progress:.2f}% complete")
+                    sys.stdout.flush()
         if verbose:
+            sys.stdout.write("\n")
             logging.info(f"Successfully created the gator protein database to {db_faa}")
     except Exception as e:
         logging.error(f"Error processing GenBank files: {e}")
