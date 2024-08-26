@@ -1350,12 +1350,12 @@ def write_fasta_dbfaa(
     """
     if not header:
         if verbose:
-            logging.warning("Attempted to write FASTA entry with empty header.")
+            logging.debug("Attempted to write FASTA entry with empty header.")
         return
     
     if not sequence:
         if verbose:
-            logging.warning("Attempted to write FASTA entry with empty sequence.")
+            logging.debug("Attempted to write FASTA entry with empty sequence.")
         return
     
     try:
