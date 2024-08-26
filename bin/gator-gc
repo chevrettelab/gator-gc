@@ -1283,7 +1283,7 @@ def calculate_translation_for_feature(
         return seq
 
     except Exception as e:
-        logging.warning(f"Warning: Skipping {feature.location} due to error in translation: {e}")
+        logging.debug(f"Skipping {feature.location} due to compound location: {e}")
         
 def get_metadata_cds(
         feature: SeqFeature,
