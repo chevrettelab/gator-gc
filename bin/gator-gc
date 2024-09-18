@@ -777,7 +777,7 @@ def grouping_user_req_opt_proteins_by_contig(
     if verbose:
         logging.debug(f"Grouped {len(all_required_proteins)} {query_type} proteins into {len(hits_by_contig)} contigs.")
     if query_type == 'req' and not hits_by_contig:
-        raise NoRequiredProteinsGroupedContigs("No required proteins were grouped into contigs")
+        raise NoRequiredProteinsGroupedContigsError("The required proteins were not grouped into contigs")
     
     return hits_by_contig, all_required_proteins
 
