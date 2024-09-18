@@ -710,6 +710,9 @@ def parse_diamond_search(
     """
     try:
         with open(dmnd, 'r') as mfh:
+            first_line = mfh.readline()
+            if not first_line.strip():
+                raise ValueError(f"The file {dmnd} is empty. No DIAMOND hits found")
             for line in mfh:
                 if line.strip():
                     columns = line.split()
