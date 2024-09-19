@@ -710,16 +710,17 @@ def parse_diamond_search(
     """
     try:
         with open(dmnd, 'r') as mfh:
-            first_line = mfh.readline()
-            if not first_line.strip():
-                raise ValueError(f"The file {dmnd} is empty. No DIAMOND hits found")
+            is_empty = True
             for line in mfh:
                 if line.strip():
+                    is_empty = False
                     columns = line.split()
                     if len(columns) >= 2:
                         query_protein, dmnd_hit = columns[0], columns[1]
                         if query_protein in protein_dict:
                             protein_dict[query_protein]['hit'].add(dmnd_hit)
+        if verbose and is_empty:
+            raise ValueError(f"The file {dmnd} is empty. No DIAMOND hits found")
         if verbose:
             logging.info(f"Successfully parsed diamond hits from {dmnd} and integrated to protein_dict")
 
@@ -3369,15 +3370,12 @@ with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_out_', suf
 ## presence absence tables are created at
 logging.info(f"Gene level presence absence tables for deduplicated gator windows created sucessfully in {output_pa_tables}")
     
-## parsing the percent identity of all vs all windpows                                                                                                                                   
-if len(final_window) > 1 and not args.nn:
-
-    ## calculating locus conservation percentage                                                                                                                                         
-    percentages = calculating_gator_conservation_percentages(
-        pa,
-        unq_windows,
-        verbose=args.v
-    ) 
+## calculating locus conservation percentage                                                                                                                                         
+percentages = calculating_gator_conservation_percentages(
+    pa,
+    unq_windows,
+    verbose=args.v
+) 
 
 ## getting gator focal scores
 unq_gfs, itself_comp = {}, {}
