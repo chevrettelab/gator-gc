@@ -780,8 +780,8 @@ def grouping_user_req_opt_proteins_by_contig(
                 hits_by_contig[genome_contig_id].append(hit_entry)
     if verbose:
         logging.debug(f"Grouped {len(all_required_proteins)} {query_type} proteins into {len(hits_by_contig)} contigs.")
-    if query_type == 'req' and not hits_by_contig:
-        raise NoRequiredProteinsGroupedContigsError("The required proteins were not grouped into contigs")
+    #if query_type == 'req' and not hits_by_contig:
+        #raise NoRequiredProteinsGroupedContigsError("The required proteins were not grouped into contigs")
     
     return hits_by_contig, all_required_proteins
 
@@ -3407,7 +3407,7 @@ write_concat_gfs(
 logging.info(f"Concatenated of gator focal scores across deduplicated gator windows created sucessfully in {output_concatenated_gfs}")
 
 ## making the clustermap for the gator focal scores concatenate
-if len(final_window) != 1:
+if len(final_window) != 1 and len(unq_windows) != 1:
     generating_clustermap(
         output_concatenated_gfs,
         output_clustermap,
@@ -3426,11 +3426,11 @@ if args.nc is not True:
     )
 
 ## ordering windows based on gator focal scores
-if len(final_window) != 1 and args.nn is not True:
+if len(final_window) != 1 and len(unq_windows) != 1 and args.nn is not True:
     ordered_windows_w_focal, ordering_windows_by_GFS = ordering_windows_by_GFSs(output_concatenated_gfs)
 
 ## making the window neighborhood figures
-if len(final_window) != 1 and args.nn is not True:
+if len(final_window) != 1 and len(unq_windows) != 1 and args.nn is not True:
     make_gator_windows_neighborhood_figures(
         map_ge,
         ordered_windows_w_focal,
