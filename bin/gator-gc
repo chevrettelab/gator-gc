@@ -2676,6 +2676,8 @@ def gator_conservation_plot(
                 fig = gv.plotfig()
                 set_colorbar(gv, fig, 1, adaptable_height)
                 fig.savefig(output_filepath)
+                fig.clf() # clear the figure from memory
+                plt.close(fig) # close the plot to release memory 
                 if verbose:
                     logging.debug(f"Generated conservation plot for window: {window_name}")
         if verbose:
@@ -2722,9 +2724,6 @@ def ordering_windows_by_GFSs(
     except Exception as e:
         logging.error(f"Error ordering windows by Gator focal scores: {e}")
         raise
-
-import logging
-from typing import List, Tuple, Dict, Optional
 
 def gather_focal_hits(
     unq: str,
@@ -2774,31 +2773,6 @@ def gather_focal_hits(
             logging.error("Error in gathering focal hits: " + str(e))
         return None
 
-"""
-def gather_focal_hits(
-        unq: str,
-        loci_list_focal: List[Tuple[int, int, int, str, str, str, bool, bool, str, bool]],
-        all_hits: Dict[str, Dict[str, float]],
-        verbose: bool = False
-) -> Optional[Tuple[List[str], str]]:
-    try:
-        for i, cds_focal in enumerate(loci_list_focal, 1):
-            startf, endf, strandf, locusf, productf, gqueryf, gnrpsf, gpksf, ghitf, contig_edge = cds_focal
-            if gqueryf == 'req':
-                #if not gnrpsf and not gpksf: will return none if all req are modular
-                if locusf in all_hits:
-                    hlog = list(all_hits[locusf].keys())
-                    if verbose:
-                        logging.debug(f"Found focal hits for locus {locusf}: {hlog}")
-                    return (hlog, strandf)
-        if verbose:
-            logging.info("No focal ({unq}) hits found.")
-        return None
-
-    except Exception as e:
-        logging.error(f"Error gathering focal hits: {e}")
-        raise RuntimeError(f"Failed to gather focal hits. Error: {e}")
-"""
 def flip_windows_genbanks(
         hlog: List[str],
         strandf: str,
@@ -2951,6 +2925,8 @@ def prepare_window_to_genomeviz(
 
         set_colorbar(gv, fig, len(windows), adaptable_height)
         fig.savefig(output_filepath)
+        fig.clf() # clear the figure from memory
+        plt.close(fig) # close the plot to release memory
     except Exception as e:
         logging.error(f"Error preparing window to GenomeViz: {e}")
         raise RuntimeError(f"Failed to prepare window to GenomeViz. Error: {e}")
