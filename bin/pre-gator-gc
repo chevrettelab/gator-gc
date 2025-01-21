@@ -17,6 +17,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqFeature import CompoundLocation
 from typing import List, Set, Dict, Optional
+from concurrent.futures import ProcessPoolExecutor
 
 ## Constants
 MODULAR_DOMAINS_HMMDB = os.path.join(os.path.dirname(gator_gc.flat.__file__), 'modular_domains.hmmdb')
@@ -60,6 +61,13 @@ def parse_pre_gator_arguments():
              'Directories can be specified with or without wildcards.',
         required=True
     )
+    input_group.add_argument(
+        '-b',
+        type=int,
+        metavar='',
+        help='Number of GenBank files to process before writing the protein database (default: process all files at once).',
+        required=False
+        )
 
     hmmer_group = parser.add_argument_group("HMMER Options")
     hmmer_group.add_argument(
@@ -75,7 +83,7 @@ def parse_pre_gator_arguments():
         type=int,
         default=multiprocessing.cpu_count(),
         metavar='',
-        help='Number of CPU threads to use for hmmsearch (default: all available threads).',
+        help='Number of CPU threads to use for parsing genome files and for hmmsearch (default: all available threads).',
         required=False
     )
 
@@ -321,61 +329,93 @@ def calculate_translation_for_feature(
         logging.info(f"Warning: Skipping {feature.location} due to compound location: {e}")
         return None
 
-        
-def dbfaa_from_gb_dir(
+def extract_proteins(file_path: str, verbose: bool = False) -> List[str]:
+    """Extracts protein sequences from a single GenBank file."""
+    results = []
+    try:
+        genome = os.path.basename(file_path)
+        with open(file_path, 'r') as in_fh:
+            for rec in SeqIO.parse(in_fh, 'genbank'):
+                for feat in rec.features:
+                    if feat.type == 'CDS':
+                        name = get_feature_name(feat, genome, rec.id)
+                        seq = get_feature_translation(feat)
+                        if name and seq:
+                            results.append(f'>{name}\n{seq}')
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+    return results
+
+
+def get_feature_name(feat, genome: str, rec_id: str) -> str:
+    """Generates a unique feature name based on locus_tag or protein_id."""
+    if 'locus_tag' in feat.qualifiers:
+        return "|-|".join([
+            feat.qualifiers['locus_tag'][0] + "|_|" + genome,
+            str(int(feat.location.start)),
+            str(int(feat.location.end)),
+            rec_id
+        ])
+    elif 'protein_id' in feat.qualifiers:
+        return "|-|".join([
+            feat.qualifiers['protein_id'][0] + "|_|" + genome,
+            str(int(feat.location.start)),
+            str(int(feat.location.end)),
+            rec_id
+        ])
+    return None
+
+
+def get_feature_translation(feat) -> str:
+    """Retrieves the translation for a CDS feature."""
+    return feat.qualifiers.get('translation', [None])[0]
+
+
+def write_batch_to_fasta(batch_results: List[str], output_file: str) -> None:
+    """Writes a single batch of results to a FASTA file."""
+    with open(output_file, 'a') as out_fh:  # Append mode
+        out_fh.write('\n'.join(batch_results) + '\n')
+
+
+def dbfaa_from_gb_dir_parallel(
     genbank_files: List[str],
     db_faa: str,
-    verbose: bool = False
+    verbose: bool = False,
+    threads: int = None,
+    batch_size: int = None
 ) -> None:
-    """Parses out protein sequences from GenBank files and writes them to a FASTA file.
-    
-    Args:
-        genbank_files (List[str]): List of paths containing GenBank files (*.gbk or *.gbff).
-        db_faa (str): Output file name for the generated FASTA file containing protein sequences.
-        verbose (bool, optional): If True, logs additional information.
-    
-    Returns:
-        None
-    """
+    """Parses protein sequences from GenBank files in parallel and writes to a FASTA file."""
     try:
         total_files = len(genbank_files)
-        with open(db_faa, 'w') as out_fh:
-            for i, file_path in enumerate(genbank_files):
-                genome = os.path.basename(file_path)
-                with open(file_path, 'r') as in_fh:
-                    for rec in SeqIO.parse(in_fh, 'genbank'):
-                        for feat in rec.features:
-                            if feat.type == 'CDS':
-                                name = None
-                                if 'locus_tag' in feat.qualifiers:
-                                    name = "|-|".join([
-                                        feat.qualifiers['locus_tag'][0] + "|_|" + genome,
-                                        str(int(feat.location.start)),
-                                        str(int(feat.location.end)),
-                                        rec.id
-                                    ])
-                                elif 'protein_id' in feat.qualifiers:
-                                    name = "|-|".join([
-                                        feat.qualifiers['protein_id'][0] + "|_|" + genome,
-                                        str(int(feat.location.start)),
-                                        str(int(feat.location.end)),
-                                        rec.id
-                                    ])
-                                
-                                seq = calculate_translation_for_feature(feat, rec, verbose)
-                                if name is not None and seq is not None:
-                                    out_fh.write('>' + name + "\n" + seq + "\n")
-                if verbose:
-                    progress = (i + 1) / total_files * 100
-                    sys.stdout.write(f"\rCreating protein database: {progress:.2f}% complete")
-                    sys.stdout.flush()
-        if verbose:
-            sys.stdout.write("\n")
-            logging.info(f"Successfully created the gator protein database to {db_faa}")
-    except Exception as e:
-        logging.error(f"Error processing GenBank files: {e}")
-        raise RuntimeError(f"Failed to process GenBank files and write to {db_faa}. Error: {e}")
+        batch_size = batch_size or total_files
+        processed_files = 0
 
+        # Clear the output file if it already exists
+        #if os.path.exists(db_faa):
+            #open(db_faa, 'w').close()
+
+        with ProcessPoolExecutor(max_workers=threads) as executor:
+            for batch_start in range(0, total_files, batch_size):
+                batch_files = genbank_files[batch_start:batch_start + batch_size]
+
+                # Process the current batch in parallel
+                results = executor.map(extract_proteins, batch_files, [verbose] * len(batch_files))
+
+                # Flatten and write the batch results incrementally
+                for result in results:
+                    if result:
+                        write_batch_to_fasta(result, db_faa)
+
+                processed_files += len(batch_files)
+                if verbose:
+                    progress = (processed_files / total_files) * 100
+                    logging.info(f"Processed {processed_files}/{total_files} files ({progress:.2f}% complete)")
+
+        if verbose:
+            logging.info(f"Protein database created at {db_faa}")
+    except Exception as e:
+        logging.error(f"Error during parallel processing: {e}")        
+    
 def create_diamond_database(
         db_faa: str,
         database_name: str,
@@ -508,10 +548,12 @@ new_genomes_list = replace_dashes_filenames_genomes_dir(
 )
                       
 ## making pre-gator-gc faa database
-dbfaa_from_gb_dir(
+dbfaa_from_gb_dir_parallel(
     new_genomes_list,
     output_faa,
-    verbose=args.v
+    verbose=args.v,
+    threads=args.t,
+    batch_size=args.b
 )
 
 ## making pre-gator-gc diamond database
