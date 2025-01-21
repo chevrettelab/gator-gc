@@ -390,10 +390,6 @@ def dbfaa_from_gb_dir_parallel(
         batch_size = batch_size or total_files
         processed_files = 0
 
-        # Clear the output file if it already exists
-        #if os.path.exists(db_faa):
-            #open(db_faa, 'w').close()
-
         with ProcessPoolExecutor(max_workers=threads) as executor:
             for batch_start in range(0, total_files, batch_size):
                 batch_files = genbank_files[batch_start:batch_start + batch_size]
