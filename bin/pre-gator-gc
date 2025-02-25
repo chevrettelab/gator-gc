@@ -339,7 +339,7 @@ def extract_proteins(file_path: str, verbose: bool = False) -> List[str]:
                 for feat in rec.features:
                     if feat.type == 'CDS':
                         name = get_feature_name(feat, genome, rec.id)
-                        seq = get_feature_translation(feat)
+                        seq = calculate_translation_for_feature(feat, rec, verbose)
                         if name and seq:
                             results.append(f'>{name}\n{seq}')
     except Exception as e:
@@ -364,12 +364,6 @@ def get_feature_name(feat, genome: str, rec_id: str) -> str:
             rec_id
         ])
     return None
-
-
-def get_feature_translation(feat) -> str:
-    """Retrieves the translation for a CDS feature."""
-    return feat.qualifiers.get('translation', [None])[0]
-
 
 def write_batch_to_fasta(batch_results: List[str], output_file: str) -> None:
     """Writes a single batch of results to a FASTA file."""
