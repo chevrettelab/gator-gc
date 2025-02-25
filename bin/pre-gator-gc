@@ -304,7 +304,6 @@ def calculate_translation_for_feature(
     Returns:                                                                                                                                                                                                      
         str: The translated amino acid sequence. If an error occurs during the translation process, logs a warning and returns None.   
     """
-    #seq = None
     try:
         if isinstance(feature.location, CompoundLocation):
             if verbose:
@@ -319,9 +318,9 @@ def calculate_translation_for_feature(
                 return translation
 
         if feature.location.strand == 1:
-            seq = str(feature.extract(window_record).seq)
+            seq = str(window_record.seq[feature.location.start:feature.location.end])
         else:
-            seq = str(feature.extract(window_record).seq.reverse_complement())
+            seq = str(Seq(window_record.seq[feature.location.start:feature.location.end]).reverse_complement())
 
         seq = add_trailing_N(seq, verbose)
         translated_seq = str(Seq(seq).translate(to_stop=True))
