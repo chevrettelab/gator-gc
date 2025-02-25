@@ -304,12 +304,19 @@ def calculate_translation_for_feature(
     Returns:                                                                                                                                                                                                      
         str: The translated amino acid sequence. If an error occurs during the translation process, logs a warning and returns None.   
     """
-    seq = None
+    #seq = None
     try:
-        if isinstance(feature.location, CompoundLocation) or 'translation' in feature.qualifiers:
+        if isinstance(feature.location, CompoundLocation):
             if verbose:
-                logging.debug(f"Translation found in qualifiers for feature at {feature.location}. Using existing translation.")
-            return feature.qualifiers['translation'][0]
+                logging.debug(f"Translation found in qualifiers for feature at {feature.location}. (CompoundLocation detected).")
+            return None
+
+        if 'translation' in feature.qualifiers and feature.qualifiers['translation']:
+            translation = feature.qualifiers['translation'][0]
+            if translation and len(translation) > 0:
+                if verbose:
+                    logging.debug(f"Using existing translation for feature at {feature.location}.")
+                return translation
 
         if feature.location.strand == 1:
             seq = str(feature.extract(window_record).seq)
@@ -317,16 +324,16 @@ def calculate_translation_for_feature(
             seq = str(feature.extract(window_record).seq.reverse_complement())
 
         seq = add_trailing_N(seq, verbose)
-        seq = str(Seq(seq).translate(to_stop=True))
+        translated_seq = str(Seq(seq).translate(to_stop=True))
 
-        feature.qualifiers["translation"] = [seq]
+        feature.qualifiers["translation"] = [translated_seq]
         if verbose:
-            logging.debug(f"Calculated translation for feature at {feature.location}.")
+            logging.debug(f"Calculated translation for feature at {feature.location}: {translated_seq}")
 
-        return seq
+        return translated_seq
 
     except Exception as e:
-        logging.info(f"Warning: Skipping {feature.location} due to compound location: {e}")
+        logging.warning(f"Error translating feature at {feature.location}: {str(e)}")
         return None
 
 def extract_proteins(file_path: str, verbose: bool = False) -> List[str]:
