@@ -6,6 +6,7 @@
 
 GATOR-GC is a user-friendly algorithm designed for targeted exploration of BGC and genomic islands diversity. It focuses on key biosynthetic enzymes and offers flexibility in defining the taxonomic scope of the analysis. Unlike methods relying on arbitrary cutoffs, GATOR-GC establishes BGC boundaries based on evolutionary principles and implements an enzyme-aware scoring system for assessing BGC-BGC distances, moving beyond a binary presence-absence framework. This approach enhances the tool's capability to identify and prioritize novelty, effectively mapping biosynthetic diversity into distinct groups
 
+You can find our preprint on [bioRxiv](https://www.biorxiv.org/content/10.1101/2025.02.24.639861v1)
 ## Authors
 
 - Code, design, and development: José D. D. Cediel-Becerra,  Marc G. Chevrette
