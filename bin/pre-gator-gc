@@ -47,6 +47,12 @@ Afiliation: Microbiology & Cell Science Deparment, University of Florida
 Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
 Version: """+VERSION
 
+##testing this for MacOS
+if sys.platform == "darwin":  # MacOS
+    multiprocessing.set_start_method("spawn", force=True)
+elif sys.platform == "linux":
+    multiprocessing.set_start_method("fork", force=True)
+    
 def parse_pre_gator_arguments():
     parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
 
@@ -513,63 +519,66 @@ def run_hmmsearch(
 #################################################################################
 ############################# BEGIN MAIN BLOCK ##################################
 
-## parse gator arguments
-args = parse_pre_gator_arguments()
 
-## print gator to start
-print(DESCRIPTION)
 
-## make output directory 
-create_directory(
-    args.o,
-    verbose=args.v
-)
+if __name__ == "__main__":
+    ## parse gator arguments
+    args = parse_pre_gator_arguments()
 
-## getting list of genomes
-genomes_list = get_list_genomes(
-    args.g,
-    verbose=args.v
-)
+    ## print gator to start
+    print(DESCRIPTION)
 
-## defining paths
-basename = os.path.basename(args.o)
-output_faa = os.path.join(args.o, f'{basename}.faa')
-output_dmnd = os.path.join(args.o, f'{basename}.dmnd')
-output_domtblout = os.path.join(args.o, f'{basename}.domtblout')
+    ## make output directory 
+    create_directory(
+        args.o,
+        verbose=args.v
+    )
 
-## replace dashes in genomes filenames
-new_genomes_list = replace_dashes_filenames_genomes_dir(
-    genomes_list,
-    verbose=args.v
-)
+    ## getting list of genomes
+    genomes_list = get_list_genomes(
+        args.g,
+        verbose=args.v
+    )
+
+    ## defining paths
+    basename = os.path.basename(args.o)
+    output_faa = os.path.join(args.o, f'{basename}.faa')
+    output_dmnd = os.path.join(args.o, f'{basename}.dmnd')
+    output_domtblout = os.path.join(args.o, f'{basename}.domtblout')
+
+    ## replace dashes in genomes filenames
+    new_genomes_list = replace_dashes_filenames_genomes_dir(
+        genomes_list,
+        verbose=args.v
+    )
                       
-## making pre-gator-gc faa database
-dbfaa_from_gb_dir_parallel(
-    new_genomes_list,
-    output_faa,
-    verbose=args.v,
-    threads=args.t,
-    batch_size=args.b
-)
+    ## making pre-gator-gc faa database
+    dbfaa_from_gb_dir_parallel(
+        new_genomes_list,
+        output_faa,
+        verbose=args.v,
+        threads=args.t,
+        batch_size=args.b
+    )
 
-## making pre-gator-gc diamond database
-create_diamond_database(
-    output_faa,
-    output_dmnd,
-    False,
-    args.t,
-    verbose=args.v
-)
+    ## making pre-gator-gc diamond database
+    create_diamond_database(
+        output_faa,
+        output_dmnd,
+        False,
+        args.t,
+        verbose=args.v
+    )
     
-## making pre-gator-gc domtblout database
-run_hmmsearch(
-    MODULAR_DOMAINS_HMMDB,
-    output_faa,
-    output_domtblout,
-    args.t,
-    args.e,
-    verbose=args.v
-)
-
-## elapsed time                                                                                                                                 
-elapsed_time(stime)
+    ## making pre-gator-gc domtblout database
+    run_hmmsearch(
+        MODULAR_DOMAINS_HMMDB,
+        output_faa,
+        output_domtblout,
+        args.t,
+        args.e,
+        verbose=args.v
+    )
+    
+    ## elapsed time                                                                                                                                 
+    elapsed_time(stime)
