@@ -135,10 +135,17 @@ def parse_gator_arguments():
         required=False
     )
     alignment_group.add_argument(
+        '-us',
+        action='store_true',
+        default=False,
+        help='Enable ultra-sensitive DIAMOND alignment. This overrides query cover and protein percent values only for the window search.(Default: False)',
+        required=False
+    )
+    alignment_group.add_argument(
         '-qc',
         type=float,
         default=70,
-        help='Minimum percent query cover for diamond search. (Default: 70)',
+        help='Minimum percent query cover for diamond search (Default: 70). if ultra sensitive was enabled, query cover value is used only for all vs all comparisons',
         metavar='',
         required=False
     )
@@ -146,26 +153,26 @@ def parse_gator_arguments():
         '-idt',
         type=float,
         default=35,
-        help='Minimum percent identity for diamond search. (Default: 35)',
+        help='Minimum percent identity for diamond search. (Default: 35). if ultra sensitive was enabled, percent identity value is used only for all vs all comparisons',
         metavar='',
-        required=False
-    )
-    alignment_group.add_argument(
-        '-us',
-        action='store_true',
-        default=False,
-        help='Enable ultra-sensitive DIAMOND alignment. (Default: False)',
         required=False
     )
     alignment_group.add_argument(
         '-bs',
         type=float,
         default=2,
-        help='DIAMOND block size. It controlls DIAMOND memory and disk space. (Default: 2)',
+        help='DIAMOND block size. It controlls DIAMOND memory and disk space. For large datasets, increase this but keep an eye on memory and disk (Default: 2)',
         metavar='',
         required=False
     )
-
+    alignment_group.add_argument(
+        '-k',
+        type=int,
+        default=int(1e50),
+        help='Number of target sequences. (Default: 1e50)',
+        metavar='',
+        required=False
+    )
     hmmer_group = parser.add_argument_group("HMMER Options")
     hmmer_group.add_argument(
         '-e',
@@ -665,7 +672,7 @@ def run_diamond(
     identity: float,
     ultra_sensitive: bool = False,
     block_size: float = 2.0,
-    max_matches: Optional[int] = int(1e50),
+    max_matches: int = 1e50,
     verbose: bool = False
 ) -> None:
     """
@@ -691,13 +698,16 @@ def run_diamond(
         '-o', dmnd_out,
         '--quiet',
         '--threads', str(threads),
-        '--query-cover', str(query_cover),
-        '--id', str(identity),
         '-k', str(max_matches),
         '-b',str(block_size)
     ]
-    if ultra_sensitive:
-         command.append('--ultra-sensitive')
+    if not ultra_sensitive:
+        command.extend([
+            '--query-cover', str(query_cover),
+            '--id', str(identity)
+        ])
+    else:
+        command.append('--ultra-sensitive')
     try:
         if verbose:
             logging.debug(f"Running DIAMOND with command: {' '.join(command)}")
@@ -1634,7 +1644,7 @@ def deduplication_for_windows(
             faa_name = os.path.basename(faa).split('.')[0]
             n += 1
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
-            run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, verbose)
+            run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, args.k, verbose)
             os.remove(faa)
             pa, idx_win_map = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, False, False, map_dmnd, verbose)
             os.remove(diamond_output)
@@ -3249,6 +3259,7 @@ if __name__ == "__main__":
             args.idt,
             args.us,
             args.bs,
+            args.k,
             verbose=args.v
         )
 
@@ -3360,6 +3371,7 @@ if __name__ == "__main__":
             args.idt,
             False,
             args.bs,
+            args.k,
             verbose=args.v
         )
         pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(
