@@ -150,6 +150,21 @@ def parse_gator_arguments():
         metavar='',
         required=False
     )
+    alignment_group.add_argument(
+        '-us',
+        action='store_true',
+        default=False,
+        help='Enable ultra-sensitive DIAMOND alignment. (Default: False)',
+        required=False
+    )
+    alignment_group.add_argument(
+        '-bs',
+        type=float,
+        default=2,
+        help='DIAMOND block size. It controlls DIAMOND memory and disk space. (Default: 2)',
+        metavar='',
+        required=False
+    )
 
     hmmer_group = parser.add_argument_group("HMMER Options")
     hmmer_group.add_argument(
@@ -648,6 +663,8 @@ def run_diamond(
     threads: int,
     query_cover: float,
     identity: float,
+    ultra_sensitive: bool = False,
+    block_size: float = 2.0,
     max_matches: Optional[int] = int(1e50),
     verbose: bool = False
 ) -> None:
@@ -663,7 +680,7 @@ def run_diamond(
         identity (float): Minimum identity percentage.
         max_matches (Optional[int]): Maximum number of matches to report per query (default: 1e50).
         verbose (bool): Flag to enable logging of detailed execution messages.
-
+        ADD ULTRA_SENSITIVE AND BLOCK_SIZE ONCE IT IS CONFIRMED TO WORK.      
     Returns:
         None: This function runs the DIAMOND BLASTP command and does not return any value.
     """
@@ -676,9 +693,12 @@ def run_diamond(
         '--threads', str(threads),
         '--query-cover', str(query_cover),
         '--id', str(identity),
-        '-k', str(max_matches)
+        '-k', str(max_matches),
+        '-b',str(block_size)
     ]
-
+    if ultra_sensitive:
+         command.append('--ultra-sensitive')
+    print(command)
     try:
         if verbose:
             logging.debug(f"Running DIAMOND with command: {' '.join(command)}")
@@ -1615,7 +1635,7 @@ def deduplication_for_windows(
             faa_name = os.path.basename(faa).split('.')[0]
             n += 1
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
-            run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, verbose)
+            run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, verbose)
             os.remove(faa)
             pa, idx_win_map = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, False, False, map_dmnd, verbose)
             os.remove(diamond_output)
@@ -3228,6 +3248,8 @@ if __name__ == "__main__":
             args.t,
             args.qc,
             args.idt,
+            args.us,
+            args.bs,
             verbose=args.v
         )
 
@@ -3337,6 +3359,8 @@ if __name__ == "__main__":
             args.t,
             args.qc,
             args.idt,
+            False,
+            args.bs,
             verbose=args.v
         )
         pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(
