@@ -698,7 +698,6 @@ def run_diamond(
     ]
     if ultra_sensitive:
          command.append('--ultra-sensitive')
-    print(command)
     try:
         if verbose:
             logging.debug(f"Running DIAMOND with command: {' '.join(command)}")
