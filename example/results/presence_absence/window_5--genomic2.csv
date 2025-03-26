@@ -1,0 +1,6 @@
+Gator Windows/Focal Loci,H1X69_07175|_|genomic2.gbff,H1X69_07180|_|genomic2.gbff,H1X69_07185|_|genomic2.gbff,H1X69_07190|_|genomic2.gbff,H1X69_07195|_|genomic2.gbff,H1X69_07200|_|genomic2.gbff,H1X69_07205|_|genomic2.gbff,H1X69_07210|_|genomic2.gbff,H1X69_07215|_|genomic2.gbff,H1X69_07220|_|genomic2.gbff,H1X69_07225|_|genomic2.gbff,H1X69_07230|_|genomic2.gbff,H1X69_07235|_|genomic2.gbff,H1X69_07240|_|genomic2.gbff,H1X69_07245|_|genomic2.gbff,H1X69_07250|_|genomic2.gbff,H1X69_07255|_|genomic2.gbff,H1X69_07260|_|genomic2.gbff,H1X69_07265|_|genomic2.gbff
+window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0
+window_3--genomic3.gbff,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0
+window_4--genomic.gbff,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0
+window_5--genomic2.gbff,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.0,0.0

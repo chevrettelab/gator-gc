@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1032.40625pt" height="700.724219pt" viewBox="0 0 1032.40625 700.724219" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2025-03-26T13:27:11.758351</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.8.0, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 700.724219 
+L 1032.40625 700.724219 
+L 1032.40625 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="LineCollection_1">
+    <path d="M 228.96 230.378906 
+L 196.225369 230.378906 
+L 196.225369 323.978906 
+L 228.96 323.978906 
+" clip-path="url(#p92cd505d9c)" style="fill: none; stroke: #000000; stroke-width: 1.5"/>
+    <path d="M 228.96 511.178906 
+L 185.984064 511.178906 
+L 185.984064 604.778906 
+L 228.96 604.778906 
+" clip-path="url(#p92cd505d9c)" style="fill: none; stroke: #000000; stroke-width: 1.5"/>
+    <path d="M 228.96 417.578906 
+L 162.940199 417.578906 
+L 162.940199 557.978906 
+L 185.984064 557.978906 
+" clip-path="url(#p92cd505d9c)" style="fill: none; stroke: #000000; stroke-width: 1.5"/>
+    <path d="M 196.225369 277.178906 
+L 64.388571 277.178906 
+L 64.388571 487.778906 
+L 162.940199 487.778906 
+" clip-path="url(#p92cd505d9c)" style="fill: none; stroke: #000000; stroke-width: 1.5"/>
+   </g>
+  </g>
+  <g id="axes_2">
+   <g id="patch_2">
+    <path d="M 230.4 651.578906 
+L 720 651.578906 
+L 720 183.578906 
+L 230.4 183.578906 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="QuadMesh_1">
+    <path d="M 230.4 183.578906 
+L 328.32 183.578906 
+L 328.32 277.178906 
+L 230.4 277.178906 
+L 230.4 183.578906 
+" clip-path="url(#pe117b4f028)" style="fill: #fde725; stroke: #000000"/>
+    <path d="M 328.32 183.578906 
+L 426.24 183.578906 
+L 426.24 277.178906 
+L 328.32 277.178906 
+L 328.32 183.578906 
+" clip-path="url(#pe117b4f028)" style="fill: #7ad151; stroke: #000000"/>
+    <path d="M 426.24 183.578906 
+L 524.16 183.578906 
+L 524.16 277.178906 
+L 426.24 277.178906 
+L 426.24 183.578906 
+" clip-path="url(#pe117b4f028)" style="fill: #472d7b; stroke: #000000"/>
+    <path d="M 524.16 183.578906 
+L 622.08 183.578906 
+L 622.08 277.178906 
+L 524.16 277.178906 
+L 524.16 183.578906 
+" clip-path="url(#pe117b4f028)" style="fill: #472d7b; stroke: #000000"/>
+    <path d="M 622.08 183.578906 
+L 720 183.578906 
+L 720 277.178906 
+L 622.08 277.178906 
+L 622.08 183.578906 
+" clip-path="url(#pe117b4f028)" style="fill: #471063; stroke: #000000"/>
+    <path d="M 230.4 277.178906 
+L 328.32 277.178906 
+L 328.32 370.778906 
+L 230.4 370.778906 
+L 230.4 277.178906 
+" clip-path="url(#pe117b4f028)" style="fill: #86d549; stroke: #000000"/>
+    <path d="M 328.32 277.178906 
+L 426.24 277.178906 
+L 426.24 370.778906 
+L 328.32 370.778906 
+L 328.32 277.178906 
+" clip-path="url(#pe117b4f028)" style="fill: #fde725; stroke: #000000"/>
+    <path d="M 426.24 277.178906 
+L 524.16 277.178906 
+L 524.16 370.778906 
+L 426.24 370.778906 
+L 426.24 277.178906 
+" clip-path="url(#pe117b4f028)" style="fill: #34618d; stroke: #000000"/>
+    <path d="M 524.16 277.178906 
+L 622.08 277.178906 
+L 622.08 370.778906 
+L 524.16 370.778906 
+L 524.16 277.178906 
+" clip-path="url(#pe117b4f028)" style="fill: #472d7b; stroke: #000000"/>
+    <path d="M 622.08 277.178906 
+L 720 277.178906 
+L 720 370.778906 
+L 622.08 370.778906 
+L 622.08 277.178906 
+" clip-path="url(#pe117b4f028)" style="fill: #472f7d; stroke: #000000"/>
+    <path d="M 230.4 370.778906 
+L 328.32 370.778906 
+L 328.32 464.378906 
+L 230.4 464.378906 
+L 230.4 370.778906 
+" clip-path="url(#pe117b4f028)" style="fill: #463480; stroke: #000000"/>
+    <path d="M 328.32 370.778906 
+L 426.24 370.778906 
+L 426.24 464.378906 
+L 328.32 464.378906 
+L 328.32 370.778906 
+" clip-path="url(#pe117b4f028)" style="fill: #424086; stroke: #000000"/>
+    <path d="M 426.24 370.778906 
+L 524.16 370.778906 
+L 524.16 464.378906 
+L 426.24 464.378906 
+L 426.24 370.778906 
+" clip-path="url(#pe117b4f028)" style="fill: #fde725; stroke: #000000"/>
+    <path d="M 524.16 370.778906 
+L 622.08 370.778906 
+L 622.08 464.378906 
+L 524.16 464.378906 
+L 524.16 370.778906 
+" clip-path="url(#pe117b4f028)" style="fill: #1f978b; stroke: #000000"/>
+    <path d="M 622.08 370.778906 
+L 720 370.778906 
+L 720 464.378906 
+L 622.08 464.378906 
+L 622.08 370.778906 
+" clip-path="url(#pe117b4f028)" style="fill: #24878e; stroke: #000000"/>
+    <path d="M 230.4 464.378906 
+L 328.32 464.378906 
+L 328.32 557.978906 
+L 230.4 557.978906 
+L 230.4 464.378906 
+" clip-path="url(#pe117b4f028)" style="fill: #453581; stroke: #000000"/>
+    <path d="M 328.32 464.378906 
+L 426.24 464.378906 
+L 426.24 557.978906 
+L 328.32 557.978906 
+L 328.32 464.378906 
+" clip-path="url(#pe117b4f028)" style="fill: #424086; stroke: #000000"/>
+    <path d="M 426.24 464.378906 
+L 524.16 464.378906 
+L 524.16 557.978906 
+L 426.24 557.978906 
+L 426.24 464.378906 
+" clip-path="url(#pe117b4f028)" style="fill: #2fb47c; stroke: #000000"/>
+    <path d="M 524.16 464.378906 
+L 622.08 464.378906 
+L 622.08 557.978906 
+L 524.16 557.978906 
+L 524.16 464.378906 
+" clip-path="url(#pe117b4f028)" style="fill: #fde725; stroke: #000000"/>
+    <path d="M 622.08 464.378906 
+L 720 464.378906 
+L 720 557.978906 
+L 622.08 557.978906 
+L 622.08 464.378906 
+" clip-path="url(#pe117b4f028)" style="fill: #4ac16d; stroke: #000000"/>
+    <path d="M 230.4 557.978906 
+L 328.32 557.978906 
+L 328.32 651.578906 
+L 230.4 651.578906 
+L 230.4 557.978906 
+" clip-path="url(#pe117b4f028)" style="fill: #440154; stroke: #000000"/>
+    <path d="M 328.32 557.978906 
+L 426.24 557.978906 
+L 426.24 651.578906 
+L 328.32 651.578906 
+L 328.32 557.978906 
+" clip-path="url(#pe117b4f028)" style="fill: #424086; stroke: #000000"/>
+    <path d="M 426.24 557.978906 
+L 524.16 557.978906 
+L 524.16 651.578906 
+L 426.24 651.578906 
+L 426.24 557.978906 
+" clip-path="url(#pe117b4f028)" style="fill: #2eb37c; stroke: #000000"/>
+    <path d="M 524.16 557.978906 
+L 622.08 557.978906 
+L 622.08 651.578906 
+L 524.16 651.578906 
+L 524.16 557.978906 
+" clip-path="url(#pe117b4f028)" style="fill: #42be71; stroke: #000000"/>
+    <path d="M 622.08 557.978906 
+L 720 557.978906 
+L 720 651.578906 
+L 622.08 651.578906 
+L 622.08 557.978906 
+" clip-path="url(#pe117b4f028)" style="fill: #fde725; stroke: #000000"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="text_1">
+     <text style="font: 10px 'Arial'; text-anchor: middle" x="475.2" y="662.736719" transform="rotate(-0 475.2 662.736719)">Gator Focal Window</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_1">
+      <defs>
+       <path id="mb10caf409c" d="M 0 0 
+L 3.5 0 
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#mb10caf409c" x="720" y="230.378906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="727" y="233.972656" transform="rotate(-0 727 233.972656)">window_5--genomic2</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2">
+      <g>
+       <use xlink:href="#mb10caf409c" x="720" y="323.978906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="727" y="327.61875" transform="rotate(-0 727 327.61875)">window_6--GCF_008931305.1_ASM893130v1_genomic</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3">
+      <g>
+       <use xlink:href="#mb10caf409c" x="720" y="417.578906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="727" y="421.157812" transform="rotate(-0 727 421.157812)">window_4--genomic</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#mb10caf409c" x="720" y="511.178906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="727" y="514.81875" transform="rotate(-0 727 514.81875)">window_1--GCF_017298755.1_ASM1729875v1_genomic</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_5">
+      <g>
+       <use xlink:href="#mb10caf409c" x="720" y="604.778906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_6">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="727" y="608.372656" transform="rotate(-0 727 608.372656)">window_3--genomic3</text>
+     </g>
+    </g>
+    <g id="text_7">
+     <text style="font: 10px 'Arial'; text-anchor: middle" x="994.41875" y="417.578906" transform="rotate(-90 994.41875 417.578906)">Gator Window</text>
+    </g>
+   </g>
+  </g>
+  <g id="axes_3">
+   <g id="patch_3">
+    <path d="M 36 183.578906 
+L 50.4 183.578906 
+L 50.4 39.578906 
+L 36 39.578906 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAABQAAADICAYAAADodcFZAAABgUlEQVR4nO3biW0EQRACwHkvsgvB+Udiex2EqyVGcxsAamhg//7uX0+Dx2p9SLy2+ugYcE4LyCk3Tbn1eA2H1vAAyulb9oA+evmUubGvaxtfDvGUn5k+YT7ghRo+vr7iJ7R4J9jm0ZT9hLxg7RmgwIePnvAE22DAguhRvAINfVLiKRe0DcUryTIG/PgQAN63ZT+hts0JlDHglbbBgPka5i/lAA3jbZOvYcGdFAb8tM3/AS+cMN82J2hI3wbfGT1PWS8FU8aEa2yDNcyvrzbSKRdED1PGT6rO8GH6hF1P2OOTku/D4aOXvpTBfXgAIMVra45fC5hPmdtmdq4hxaugHG8bTnm0dA09ZQ24dFLyKV+pIZ7wQsrT2+bHAvpzii5YvpTNG7ulG3tr2/CLJX9e5rbx0dNtozXc/dsCFrQNb+x423jK6bYp2DK/rcATvnj04gs2v74Krm0w4Ktdd31YYBteDvZY+PvutjZ+qrum/jh58Ak14NZ/FA78RthruPuigH8dpHskOKqeZwAAAABJRU5ErkJggg==" id="image90311b727f" transform="scale(1 -1) translate(0 -144)" x="36" y="-39.6" width="14.4" height="144"/>
+   <g id="matplotlib.axis_3"/>
+   <g id="matplotlib.axis_4">
+    <g id="ytick_6">
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#mb10caf409c" x="50.4" y="149.536462" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="57.4" y="153.115369" transform="rotate(-0 57.4 153.115369)">0.4</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_7">
+      <g>
+       <use xlink:href="#mb10caf409c" x="50.4" y="112.883944" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_9">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="57.4" y="116.46285" transform="rotate(-0 57.4 116.46285)">0.6</text>
+     </g>
+    </g>
+    <g id="ytick_8">
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#mb10caf409c" x="50.4" y="76.231425" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_10">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="57.4" y="79.810331" transform="rotate(-0 57.4 79.810331)">0.8</text>
+     </g>
+    </g>
+    <g id="ytick_9">
+     <g id="line2d_9">
+      <g>
+       <use xlink:href="#mb10caf409c" x="50.4" y="39.578906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_11">
+      <text style="font: 10px 'Arial'; text-anchor: start" x="57.4" y="43.157812" transform="rotate(-0 57.4 43.157812)">1.0</text>
+     </g>
+    </g>
+    <g id="text_12">
+     <text style="font: 10px 'Arial'; text-anchor: middle" x="82.457812" y="111.578906" transform="rotate(-90 82.457812 111.578906)">Gator Focal Scores</text>
+    </g>
+   </g>
+   <g id="LineCollection_2"/>
+   <g id="patch_4">
+    <path d="M 36 183.578906 
+L 43.2 183.578906 
+L 50.4 183.578906 
+L 50.4 39.578906 
+L 43.2 39.578906 
+L 36 39.578906 
+L 36 183.578906 
+z
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p92cd505d9c">
+   <rect x="56.16" y="183.578906" width="172.8" height="468"/>
+  </clipPath>
+  <clipPath id="pe117b4f028">
+   <rect x="230.4" y="183.578906" width="489.6" height="468"/>
+  </clipPath>
+ </defs>
+</svg>

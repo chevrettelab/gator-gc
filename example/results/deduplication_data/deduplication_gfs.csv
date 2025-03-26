@@ -1,0 +1,19 @@
+Gator Focal Window,Gator Window,Gator Focal Score
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_2--GCF_008124915.1_ASM812491v1_genomic.gbff,1.0
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,1.0
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_5--genomic2.gbff,0.8420155962955246
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_4--genomic.gbff,0.361711698626563
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,0.3617025394877365
+window_6--GCF_008931305.1_ASM893130v1_genomic.gbff,window_3--genomic3.gbff,0.3617025394877365
+window_4--genomic.gbff,window_4--genomic.gbff,1.0
+window_4--genomic.gbff,window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,0.7246540095498686
+window_4--genomic.gbff,window_3--genomic3.gbff,0.7213759027992376
+window_4--genomic.gbff,window_5--genomic2.gbff,0.31502740916424626
+window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,1.0
+window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,window_3--genomic3.gbff,0.7629216808332225
+window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,window_4--genomic.gbff,0.6309754420615087
+window_1--GCF_017298755.1_ASM1729875v1_genomic.gbff,window_5--genomic2.gbff,0.31410357802148214
+window_3--genomic3.gbff,window_3--genomic3.gbff,1.0
+window_3--genomic3.gbff,window_5--genomic2.gbff,0.24662809328839377
+window_5--genomic2.gbff,window_5--genomic2.gbff,1.0
+window_5--genomic2.gbff,window_3--genomic3.gbff,0.2142422668177531
