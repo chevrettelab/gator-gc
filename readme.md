@@ -50,24 +50,64 @@ pip install .
 Before utilizing gator-gc, it's necessary to execute pre-gator-gc to obtain the the diamond database, and the modular domain table output.
 
 ```
+usage: pre-gator-gc [-h] -g  [...] [-b] [-e] [-t] -o  [-v]
+
+                                                                                                                                                                     
+     -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /---                         
+   /--/ ---/--/ -------/ ----/ ---/--/ ---/ --/ ----/ ----/--------/ \----\                                                                    
+  ________   _____  __________________  __________         _________________                                                                                
+ /  _____/  /  _  \ \__    ___/_____  \ \______   \       /  _____/\_   ___ \                                                                     
+/   \  ___ /  /_\  \  |    |   /   |   \ |       _/ _____    \  ___/    \  \/                     
+\    \_\  \    |    \ |    |  /    |    \|    |   \/_____/    \_\  \     \_____                   
+ \______  /____|__  / |____|  \_______  /|____|_  /       \______  /\_______  /                  
+        \/        \/                  \/        \/               \/         \/                                                            
+    -----\--\ -------\ ----\ ---\--\ ---\ --\ ------\ ----\---------\ /----                                                               
+    \----/--/ -------/ ----/ ---/--/ ---/ --/ ------/ ----/---------/ \----/                                                                       
+
+GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters                                                                               
+Developer: José D. D. Cediel-Becerra
+Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
+Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
+Version: v0.9.0
+
 optional arguments:
   -h, --help  show this help message and exit
   -v          Enable verbose output (default: False).
 
 Input Options:
   -g  [ ...]  Directories containing GenBank files (*.gbff/*.gbk/*.gb). You can specify multiple directories separated by spaces. Directories can be specified with or without wildcards.
+  -b          Number of GenBank files to process before writing the protein database (default: process all files at once).
 
 HMMER Options:
   -e          E-value threshold for HMMER hmmsearch (default: 1e-4).
-  -t          Number of CPU threads to use for hmmsearch (default: all available threads).
+  -t          Number of CPU threads to use for parsing genome files and for hmmsearch (default: all available threads).
 
 Output Options:
   -o          Directory where the gator databases (protein,  DIAMOND, and modular domtblout databases) will be saved.
 ``` 
-
+```
 Now we can run gator-gc to identify the gator windows. 
 
 ```
+usage: gator-gc [-h] -rq  [-op] -g  [...] -d  [-t] [-us] [-qc] [-idt] [-bs] [-k] [-e] [-rd] [-we] -o  [-nc] [-nn] [-v]
+
+     -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /--- 
+   /--/ ---/--/ -------/ ----/ ---/--/ ---/ --/ ----/ ----/--------/ \----\ 
+  ________   _____  __________________  __________         _________________  
+ /  _____/  /  _  \ \__    ___/_____  \ \______   \       /  _____/\_   ___ \ 
+/   \  ___ /  /_\  \  |    |   /   |   \ |       _/ _____    \  ___/    \  \/ 
+\    \_\  \    |    \ |    |  /    |    \|    |   \/_____/    \_\  \     \_____
+ \______  /____|__  / |____|  \_______  /|____|_  /       \______  /\_______  /
+        \/        \/                  \/        \/               \/         \/ 
+    -----\--\ -------\ ----\ ---\--\ ---\ --\ ------\ ----\---------\ /----
+    \----/--/ -------/ ----/ ---/--/ ---/ --/ ------/ ----/---------/ \----/
+
+GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
+Developer: José D. D. Cediel-Becerra
+Afiliation: Microbiology & Cell Science Deparment, University of Florida
+Please contact José at jcedielbecerra@ufl.edu if you have any issues
+Version:v0.9.0
+
 optional arguments:
   -h, --help  show this help message and exit
   -v          Enable verbose output. (Default: False)
@@ -80,8 +120,11 @@ Input Options:
 
 Diamond Options:
   -t          Number of CPUs to use for diamond search and hmmsearch. (Default: all available CPUs)
-  -qc         Minimum percent query cover for diamond search. (Default: 70)
-  -idt        Minimum percent identity for diamond search. (Default: 35)
+  -us         Enable ultra-sensitive DIAMOND alignment. This overrides query cover and protein percent values only for the window search.(Default: False)
+  -qc         Minimum percent query cover for diamond search (Default: 70). if ultra sensitive was enabled, query cover value is used only for all vs all comparisons
+  -idt        Minimum percent identity for diamond search. (Default: 35). if ultra sensitive was enabled, percent identity value is used only for all vs all comparisons
+  -bs         DIAMOND block size. It controlls DIAMOND memory and disk space. For large datasets, increase this but keep an eye on memory and disk (Default: 2)
+  -k          Number of target sequences. (Default: 1e50)
 
 HMMER Options:
   -e          E-value threshold for hmmsearch. (Default: 1e-4)
