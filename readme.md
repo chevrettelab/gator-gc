@@ -85,7 +85,6 @@ HMMER Options:
 Output Options:
   -o          Directory where the gator databases (protein,  DIAMOND, and modular domtblout databases) will be saved.
 ``` 
-```
 Now we can run gator-gc to identify the gator windows. 
 
 ```
