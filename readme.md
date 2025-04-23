@@ -129,7 +129,7 @@ HMMER Options:
   -e          E-value threshold for hmmsearch. (Default: 1e-4)
 
 GATOR-GC Options:
-  -rd         Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb)
+  -rd         Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb for bacteria, 174 kb for fungi, 265 kb for plants)
   -we         Extension in kilobases from the start and end positions of the gator windows. (Default: 10 kb)
 
 Output Options:
