@@ -188,7 +188,7 @@ def parse_gator_arguments():
         '-rd',
         type=float,
         default=86,
-        help='Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb)',
+        help='Maximum distance in kilobases between required genes to define a gator window. (Default: 86 kb for bacteria, 174 kb for fungi, 265 kb for plants)',
         metavar='',
         required=False
     )
