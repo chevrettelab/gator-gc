@@ -69,7 +69,7 @@ GENBANK_EXTENSIONS = [
 REQUIRED_DISTANCE_FACTOR = 1000
 WINDOW_EXTENSION_FACTOR = 1000
 EDGE_THRESHOLD = 500
-VERSION = 'v0.9.0'
+VERSION = 'v1.0.0'
 DESCRIPTION = """
 
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /--- 
