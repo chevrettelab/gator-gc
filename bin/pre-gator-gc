@@ -27,7 +27,7 @@ GENBANK_EXTENSIONS = [
     '*.gbff',
     '*.gb'
 ]
-VERSION = 'v0.9.0'
+VERSION = 'v1.0.0'
 DESCRIPTION = """
                                                                                                                                                                      
      -\ ---\--\ -------\ ----\ ---\--\ ---\ --\ ----\ ----\--------\ /---                         
