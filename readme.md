@@ -68,7 +68,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
 Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
-Version: v0.9.0
+Version: v1.0.0
 
 optional arguments:
   -h, --help  show this help message and exit
@@ -105,7 +105,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Afiliation: Microbiology & Cell Science Deparment, University of Florida
 Please contact José at jcedielbecerra@ufl.edu if you have any issues
-Version:v0.9.0
+Version:v1.0.0
 
 optional arguments:
   -h, --help  show this help message and exit
@@ -165,7 +165,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Afiliation: Microbiology & Cell Science Deparment, University of Florida                                                                              
 Please contact José at jcedielbecerra@ufl.edu if you have any issues                                                                                       
-Version: v0.9.0
+Version: v1.0.0
 [1] - 2025-03-26 13:26:19,104 - INFO - The output_name_gator_databases directory was created successfully.
 [2] - 2025-03-26 13:26:19,104 - INFO - Total genome files found: 10
 [3] - 2025-03-26 13:26:23,330 - INFO - Processed 10/10 files (100.00% complete)
@@ -199,7 +199,7 @@ GATOR-GC: Genomic Assessment Tool for Orthologous Regions and Gene Clusters
 Developer: José D. D. Cediel-Becerra
 Afiliation: Microbiology & Cell Science Deparment, University of Florida
 Please contact José at jcedielbecerra@ufl.edu if you have any issues
-Version:v0.9.0
+Version:v1.0.0
 [1] - 2025-03-26 13:26:58,808 - INFO - The results directory was created successfully.
 [2] - 2025-03-26 13:26:58,809 - INFO - Total genome files found: 10
 [3] - 2025-03-26 13:26:59,421 - INFO - hmmsearch completed successfully. Output written to /mnt/clab1/GATOR-GC/20230922-gator_dev/gator-gc/results/all_merged_queries_q3q8ikxw.domtbl
