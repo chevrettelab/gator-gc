@@ -2129,14 +2129,14 @@ def get_gfs(
             pa['gfw'] = key
             pa['sum'] = sum_pa
                     
-            if sum_pa: ## moving inside first if, to avoid unboundlocalerror for sum_pa
-                max_sum = max(sum_pa.values())
-                if max_sum != 0:
-                    pa['gfs'] = {win: val / max_sum for win, val in sum_pa.items()}
-                else:
-                    pa['gfs'] = {win: 0 for win, val in sum_pa.items()}
-                if write:
-                    write_gfs(pa, gator_scores_path, key, idx_win_map)
+        if sum_pa:
+            max_sum = max(sum_pa.values())
+            if max_sum != 0:
+                pa['gfs'] = {win: val / max_sum for win, val in sum_pa.items()}
+            else:
+                pa['gfs'] = {win: 0 for win, val in sum_pa.items()}
+            if write:
+                write_gfs(pa, gator_scores_path, key, idx_win_map)
         if deduplication:
             deduplicated_wins, itself_comp = get_deduplicate_wins(gfs, pa['gfs'].items(), idx_win_map, deduplicated_wins, itself_comp, key, verbose)
     if deduplication:
