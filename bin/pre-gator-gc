@@ -344,10 +344,15 @@ def calculate_translation_for_feature(
 def extract_proteins(file_path: str, verbose: bool = False) -> List[str]:
     """Extracts protein sequences from a single GenBank file."""
     results = []
+    seen_contigs = set()
     try:
         genome = os.path.basename(file_path)
         with open(file_path, 'r') as in_fh:
             for rec in SeqIO.parse(in_fh, 'genbank'):
+                if rec.id in seen_contigs:
+                    logging.error(f"Make sure all contig identifiers are unique in {file_path}. Contig {rec.id} is already used")
+                    sys.exit(1)
+                seen_contigs.add(rec.id)
                 for feat in rec.features:
                     if feat.type == 'CDS':
                         name = get_feature_name(feat, genome, rec.id)
