@@ -30,7 +30,6 @@ from matplotlib.patches import Patch
 from scipy.spatial.distance import pdist
 from scipy.stats import norm
 from scipy.cluster.hierarchy import dendrogram, linkage
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Set, Dict, Tuple, Union, Optional, Any, TextIO
 
 ##testing this for MacOS
@@ -979,7 +978,6 @@ def process_windows(
         logging.info("Processing gator windows, writing GenBank files for each window, FASTA database, and tracks metadata for visualization and analysis")
     base_names = {os.path.basename(path): path for path in genomes_list}
     map_wc_wi, map_pa, map_ge, map_dmnd, map_lo_wn, map_win_size = {}, {}, {}, {}, {}, {}
-    genbank_tasks = []    
     window_count = 0
     total_windows = len(final_windows)
     
@@ -999,9 +997,7 @@ def process_windows(
         loci_list, meta_loci = process_feature(window_record, genome_id, window_count, dbfaa, window_name, 
                                                req_hits, opt_hits, windows[0]['genome_contig_id'], 
                                                map_dmnd, map_lo_wn, verbose)
-        #write_genbank_files(output_directory, window_record, genome_id, window_count)
-        genbank_tasks.append((output_directory, window_record, genome_id, window_count)) #new
-
+        write_genbank_files(output_directory, window_record, genome_id, window_count)
         map_pa[window_name] = loci_list
         map_wc_wi[genome_id] = window_name
         map_win_size[window_name] = len(window_record)
@@ -1013,18 +1009,6 @@ def process_windows(
         }
         if verbose:
             logging.debug(f"Processed window {window_count}/{total_windows} for {window_name}.")
-    # Write GenBank files in parallel
-    if verbose:
-        logging.info(f"Writing {len(genbank_tasks)} GenBank files using multiple threads...")
-    
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(write_genbank_files, *args) for args in genbank_tasks]
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                logging.error(f"Error writing GenBank file in thread: {e}")
-
     return map_pa, map_wc_wi, map_ge, map_dmnd, map_lo_wn, map_win_size
 
 def extract_positions(
