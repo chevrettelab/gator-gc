@@ -391,6 +391,7 @@ def init_modular(
     for header in protein_dict:
         protein_dict[header]['is_nrps'] = False
         protein_dict[header]['is_pks'] = False
+        protein_dict[header]['hit'] = set()
     return protein_dict
 
 def parse_query_faa(
@@ -548,9 +549,9 @@ def parse_modular_domain_query_hits(
         return protein_dict
     try:
         for query_protein in modular_domain_hit:
-            if query_protein not in protein_dict:
-                logging.warning(f"Query protein {query_protein} not found in protein_dict. Adding it.")
-                protein_dict[query_protein] = {'is_nrps': False, 'is_pks': False}
+            #if query_protein not in protein_dict:
+                #logging.warning(f"Query protein {query_protein} not found in protein_dict. Adding it.")
+                #protein_dict[query_protein] = {'is_nrps': False, 'is_pks': False}
             if NRPS.issubset(modular_domain_hit[query_protein]):
                 protein_dict[query_protein]['is_nrps'] = True
                 if verbose:
@@ -635,18 +636,18 @@ def parse_modular_domain_genome_hits(
         modular_hit_dict = {'mhs_nrps': mhs_nrps, 'mhs_pks': mhs_pks, 'mhs_hybrid': mhs_hybrid}
         nrps_integrated, pks_integrated, hybrid_integrated = False, False, False
         for query_protein in protein_dict:
-            if 'hit' not in protein_dict[query_protein]:
-                protein_dict[query_protein]['hit'] = set()
-            if 'is_nrps' in protein_dict[query_protein] and 'is_pks' in protein_dict[query_protein]:
-                if protein_dict[query_protein]['is_nrps'] and protein_dict[query_protein]['is_pks']:
-                    protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_hybrid'])
-                    hybrid_integrated = True
-                elif protein_dict[query_protein]['is_nrps']:
-                    protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_nrps'])
-                    nrps_integrated = True
-                elif protein_dict[query_protein]['is_pks']:
-                    protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_pks'])
-                    pks_integrated = True
+            #if 'hit' not in protein_dict[query_protein]:
+                #protein_dict[query_protein]['hit'] = set()
+            #if 'is_nrps' in protein_dict[query_protein] and 'is_pks' in protein_dict[query_protein]:
+            if protein_dict[query_protein]['is_nrps'] and protein_dict[query_protein]['is_pks']:
+                protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_hybrid'])
+                hybrid_integrated = True
+            elif protein_dict[query_protein]['is_nrps']:
+                protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_nrps'])
+                nrps_integrated = True
+            elif protein_dict[query_protein]['is_pks']:
+                protein_dict[query_protein]['hit'].update(modular_hit_dict['mhs_pks'])
+                pks_integrated = True
         if verbose:
             if hybrid_integrated:
                 logging.info("Successfully integrated Hybrid hits into protein_dict.")
@@ -751,8 +752,8 @@ def parse_diamond_search(
                     columns = line.split()
                     if len(columns) >= 2:
                         query_protein, dmnd_hit = columns[0], columns[1]
-                        if query_protein in protein_dict:
-                            protein_dict[query_protein]['hit'].add(dmnd_hit)
+                        #if query_protein in protein_dict:
+                        protein_dict[query_protein]['hit'].add(dmnd_hit)
         if verbose and is_empty:
             raise ValueError(f"The file {dmnd} is empty. No DIAMOND hits found")
         if verbose:
