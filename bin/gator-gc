@@ -1641,7 +1641,7 @@ def deduplication_for_windows(
         repre_list = [initial_repre]
         for faa in repre_list:
             make_newdbfaa(faa, newdbfaa, verbose)
-            faa_name = os.path.basename(faa).split('.')[0]
+            faa_name = os.path.splitext(os.path.basename(faa))[0]
             n += 1
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
             run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, args.k, verbose)
