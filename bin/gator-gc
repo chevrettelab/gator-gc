@@ -1627,7 +1627,9 @@ def deduplication_for_windows(
     if verbose:
         logging.info("Starting deduplication process for gator windows.")
     current_dmnddb = dmnddb
+    old_dbfaa = None
     current_dbfaa = dbfaa
+    old_dmnddb = None
     no_repre = ''
     unq_gfs, itself_comp = {}, {}
     full_set = set()
@@ -1636,33 +1638,54 @@ def deduplication_for_windows(
     biggest_window = sorted_windows.pop(0)
     n = 0
     next_faa = None
+    all_repres = set()
+    all_pa, all_idx, all_win_id, all_all_hits, all_per = {}, {}, {}, {}, {}
+    all_win_set = set(os.path.splitext(k)[0] for k in raw_map_pa.keys())
     with TemporaryDirectory(dir=directory_output) as temp_dir:
         initial_repre = get_faa(temp_dir, dbfaa, no_repre, biggest_window, verbose)
         repre_list = [initial_repre]
         for faa in repre_list:
             make_newdbfaa(faa, newdbfaa, verbose)
             faa_name = os.path.splitext(os.path.basename(faa))[0]
+            all_repres.add(faa_name)
             n += 1
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
             run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, args.k, verbose)
-            os.remove(faa)
-            pa, idx_win_map = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, False, False, map_dmnd, verbose)
-            os.remove(diamond_output)
-            gfs, unq_gfs, itself_comp = get_gfs(pa, req_opt_locus, directory_output, idx_win_map, unq_gfs, itself_comp, True, False, verbose)
-            full_set = write_concat_gfs(directory_output, gfs, idx_win_map, full_set, n, True)
-            if full_set.issubset(set(unq_gfs.keys())):
+            pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, map_dmnd, verbose)
+            percentages = calculating_gator_conservation_percentages(pa, verbose=args.v)
+            all_per.update(percentages)
+            all_pa.update(pa)
+            all_idx.update(idx_win_map)
+            all_win_id.update(windows_identity)
+            all_all_hits.update(all_hits)
+            gfs, unq_gfs, itself_comp = get_gfs(pa, req_opt_locus, directory_output, idx_win_map, unq_gfs, itself_comp, verbose)
+            write_concat_gfs(directory_output, gfs, idx_win_map)
+            done, processed_windows = deduplication_progress(all_win_set, unq_gfs)
+            if verbose:
+                logging.info(f"Deduplication progress: {done:.2f}% done.")
+            if all_win_set.issubset(processed_windows):
                 if verbose:
                     logging.info("All windows have been processed and deduplicated.")
                 break
-            current_dbfaa, current_dmnddb = reduce_databases(current_dbfaa, unq_gfs, temp_dir, n, faa_name, sorted_windows, args.t, verbose)
+            new_dbfaa, new_dmnddb = reduce_databases(current_dbfaa, unq_gfs, temp_dir, n, faa_name, all_repres, sorted_windows, args.t, verbose)
+            cleanup_old_files([old_dbfaa, old_dmnddb, faa, diamond_output], verbose)
+            old_dbfaa, old_dmnddb = current_dbfaa, current_dmnddb
+            current_dbfaa, current_dmnddb = new_dbfaa, new_dmnddb
             if sorted_windows:
                 biggest_window = sorted_windows.pop(0)
                 next_faa = get_faa(temp_dir, current_dbfaa, faa_name, biggest_window)
             if next_faa and next_faa not in repre_list:
                 repre_list.append(next_faa)
-        clean_up(current_dbfaa, current_dmnddb)
-    unq_windows = get_unique_comp(os.path.join(directory_output, 'deduplication_data', 'unq_comp.tsv'), unq_gfs, itself_comp, verbose)
-    return unq_windows
+        unq_windows = get_unique_comp(os.path.join(directory_output, 'deduplication_data', 'unq_comp.tsv'), unq_gfs, itself_comp, verbose)
+    return unq_windows, all_pa, all_idx, all_win_id, all_all_hits, all_per
+
+def deduplication_progress(all_windows: set, unq_gfs: Dict) -> Tuple[float, float]:
+    processed_windows = set(unq_gfs)
+    remaining = len(all_windows - processed_windows)
+    total = len(all_windows)
+    done_percent = 100 * (total - remaining) / total if total else 100.0
+    remain_percent = 100 * remaining / total if total else 0.0
+    return done_percent, processed_windows
 
 def reduce_databases(
         dbfaa: str,
@@ -1670,6 +1693,7 @@ def reduce_databases(
         temp_dir: str,
         iteration: int,
         prefix: str,
+        all_repres: Set[str],
         sorted_windows: List[str],
         threads: int,
         verbose: bool = False
@@ -1690,26 +1714,27 @@ def reduce_databases(
     Returns:
         Tuple[str, str]: Paths to the new FAA and DMND database files.
     """
-    new_dbfaa = subset_dbfaa(dbfaa, unq_gfs, os.path.join(temp_dir, f'subset_{iteration}.faa'), prefix, sorted_windows, verbose)
-    new_dmnddb = create_diamond_database(new_dbfaa, os.path.join(temp_dir, f'subset_{iteration}.dmnd'), True, threads, verbose)
+    new_dbfaa = os.path.join(temp_dir, f'subset_{iteration}.faa')
+    new_dmnddb = os.path.join(temp_dir, f'subset_{iteration}.dmnd')
+    new_dbfaa = subset_dbfaa(dbfaa, unq_gfs, new_dbfaa, prefix, all_repres, sorted_windows, verbose)
+    new_dmnddb = create_diamond_database(new_dbfaa, new_dmnddb, True, threads, verbose)
     return new_dbfaa, new_dmnddb
-
-def clean_up(
-        current_dbfaa: str,
-        current_dmnddb: str
-) -> None:
-    """
-    Removes specified database files as part of cleanup.
+    
+def cleanup_old_files(files: List[str], verbose: bool = False) -> None:
+    """Remove old temporary files safely.
 
     Args:
-        current_dbfaa (str): Path to the FAA database to remove.
-        current_dmnddb (str): Path to the DMND database to remove.
+        files (List[str]): List of file paths to remove.
+        verbose (bool): If True, logs info about removals and warnings on failure.
     """
-    try:
-        os.remove(current_dbfaa)
-        os.remove(current_dmnddb)
-    except OSError as e:
-        logging.error(f"Failed to remove databases {current_dbfaa} or {current_dmnddb}: {e}")
+    for file_path in files:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                if verbose:
+                    logging.debug(f"Removed old temp file: {file_path}")
+            except Exception as e:
+                logging.warning(f"Failed to remove {file_path}: {e}")
 
 def get_unique_comp(
         directory_output: str,
@@ -1743,7 +1768,6 @@ def get_unique_comp(
             logging.info(f"Unique computations written to {directory_output}")
     except IOError as e:
         logging.error(f"Failed to write to {directory_output}: {e}")
-
     return unq_windows
 
 def get_faa(
@@ -1808,8 +1832,6 @@ def parse_diamond_pa(
         pa: Dict[str, Any],
         raw_map_pa: Dict[str, List[str]],
         output: str,
-        write: bool,
-        figures: bool,
         map_dmnd: Dict[str, Any],
         verbose: bool = False
 ) -> Tuple[Dict[str, Any], Dict[int, str], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
@@ -1821,8 +1843,6 @@ def parse_diamond_pa(
         pa (Dict[str, Any]): Dictionary to be updated with parsed data.
         raw_map_pa (Dict[str, List[str]]): mapping of window_name with loci.
         output (str): Output directory or file path for writing results.
-        write (bool): Whether to write output tables.
-        figures (bool): Whether to generate figures.
         map_dmnd (Dict[str, Any]): Mapping dictionary for DIAMOND data.
         verbose (bool): If True, enables verbose logging.
 
@@ -1830,9 +1850,9 @@ def parse_diamond_pa(
         Tuple[Dict[str, Any], Dict[int, str], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
             - Updated 'pa' dictionary.
             - Index to window name mapping dictionary.
-            - (Optional) Windows identity dictionary if 'figures' is True.
-            - (Optional) All hits dictionary if 'figures' is True.
-    """    
+            - Windows identity dictionary 
+            - All hits dictionary 
+    """
     win_list = list(raw_map_pa.keys())
     win_index_map = {win: idx for idx, win in enumerate(win_list)}
     idx_win_map = {idx: win for idx, win in enumerate(win_list)}
@@ -1842,15 +1862,11 @@ def parse_diamond_pa(
         with open(dmnd_out, 'r') as fh:
             for line in fh:
                 cols = line.strip().split()
-                process_diamond_line(cols, pa, init_needed, raw_map_pa, win_list, win_index_map, windows_identity, all_hits, map_dmnd, figures, verbose)
-        if write:
-            if verbose:
-                logging.debug(f"Writing PA tables to {output}")
+                process_diamond_line(cols, pa, init_needed, raw_map_pa, win_list, win_index_map, windows_identity, all_hits, map_dmnd, verbose)
+        if verbose:
+            logging.debug(f"Writing PA tables to {output}")
             write_pa_tables(pa, output)
-        if figures:
-            return pa, idx_win_map, windows_identity, all_hits
-        else:
-            return pa, idx_win_map
+        return pa, idx_win_map, windows_identity, all_hits
     except FileNotFoundError:
         logging.error(f"File not found: {dmnd_out}")
         raise
@@ -1868,7 +1884,6 @@ def process_diamond_line(
         windows_identity: Dict[str, Any],
         all_hits: Dict[str, Dict[str, float]],
         map_dmnd: Dict[str, Dict[str, Any]],
-        figures: bool,
         verbose: bool = False
 ) -> None:
     """
@@ -1884,7 +1899,6 @@ def process_diamond_line(
         windows_identity (Dict[str, Any]): Dictionary to store windows identity data.
         all_hits (Dict[str, Dict[str, float]]): Dictionary to store all hit data.
         map_dmnd (Dict[str, Dict[str, Any]]): Mapping dictionary for DIAMOND data.
-        figures (bool): Whether to generate figures.
         verbose (bool): If True, enables verbose logging.
 
     Returns:
@@ -1903,20 +1917,18 @@ def process_diamond_line(
         pa[qw]['loci'][ql][win_index] = 1
         if verbose:
             logging.debug(f"Updated presence hit data for {ql} in {qw}")
-    if figures:
-        if verbose:
-            logging.debug(f"Updating windows identity for {qw} and {hw}")
-        windows_identity = meta_homology_rails(
-            windows_identity, qw, hw, map_dmnd[qw][ql]['nrps'], map_dmnd[qw][ql]['pks'],
-            map_dmnd[qw][ql]['start'], map_dmnd[qw][ql]['end'], map_dmnd[qw][ql]['strand'],
-            query_aa_start, query_aa_end, map_dmnd[hw][hl]['nrps'], map_dmnd[hw][hl]['pks'],
-            map_dmnd[hw][hl]['start'], map_dmnd[hw][hl]['end'], map_dmnd[hw][hl]['strand'],
-            hit_aa_start, hit_aa_end, per_identity, map_dmnd[qw][ql]['record_length'], 
-            map_dmnd[hw][hl]['record_length'], bit_score, ql, hl
-        )
-        all_hits = get_all_hits(all_hits, ql, hl, per_identity)
-        if verbose:
-            logging.debug(f"Updated all hits for {ql} and {hl}")
+    if verbose:
+        logging.debug(f"Updating windows identity for {qw} and {hw}")
+    windows_identity = meta_homology_rails(
+        windows_identity, qw, hw, map_dmnd[qw][ql]['nrps'], map_dmnd[qw][ql]['pks'],
+        map_dmnd[qw][ql]['start'], map_dmnd[qw][ql]['end'], map_dmnd[qw][ql]['strand'],
+        query_aa_start, query_aa_end, map_dmnd[hw][hl]['nrps'], map_dmnd[hw][hl]['pks'],
+        map_dmnd[hw][hl]['start'], map_dmnd[hw][hl]['end'], map_dmnd[hw][hl]['strand'],
+        hit_aa_start, hit_aa_end, per_identity, map_dmnd[qw][ql]['record_length'], 
+        map_dmnd[hw][hl]['record_length'], bit_score, ql, hl
+    )
+    all_hits = get_all_hits(all_hits, ql, hl, per_identity)
+    logging.debug(f"Updated all hits for {ql} and {hl}")
 
 def initialize_pa_data_structure(
         qw: str,
@@ -1977,8 +1989,8 @@ def write_pa_tables(
                 writer.writerow(header)
                 for i, win in enumerate(win_list):
                     row = [win] + [loci[locus][i] for locus in loci]
-                    #if any(value != 0 for value in row[1:]): 
-                    writer.writerow(row)
+                    if any(value != 0 for value in row[1:]): 
+                        writer.writerow(row)
             if verbose:
                 logging.debug(f"Successfully wrote file {output_file}")
         except IOError as e:
@@ -2094,8 +2106,6 @@ def get_gfs(
     idx_win_map: Dict[int, str],
     deduplicated_wins: Dict[str, str],
     itself_comp: Dict[str, str],
-    deduplication: bool,
-    write: bool,
     verbose: bool = False
 ) -> Tuple[Dict[str, Dict[str, Any]], Optional[Dict[str, str]], Optional[Dict[str, str]]]:
     """
@@ -2128,22 +2138,16 @@ def get_gfs(
             sum_pa = apply_weights(pa, weight_arrays)
             pa['gfw'] = key
             pa['sum'] = sum_pa
-                    
         if sum_pa:
             max_sum = max(sum_pa.values())
             if max_sum != 0:
                 pa['gfs'] = {win: val / max_sum for win, val in sum_pa.items()}
             else:
                 pa['gfs'] = {win: 0 for win, val in sum_pa.items()}
-            if write:
-                write_gfs(pa, gator_scores_path, key, idx_win_map)
-        if deduplication:
-            deduplicated_wins, itself_comp = get_deduplicate_wins(gfs, pa['gfs'].items(), idx_win_map, deduplicated_wins, itself_comp, key, verbose)
-    if deduplication:
-        return gfs, deduplicated_wins, itself_comp
-    else:
-        return gfs
-        
+            write_gfs(pa, gator_scores_path, key, idx_win_map)
+        deduplicated_wins, itself_comp = get_deduplicate_wins(gfs, pa['gfs'].items(), idx_win_map, deduplicated_wins, itself_comp, key, verbose)
+    return gfs, deduplicated_wins, itself_comp
+
 def get_weights_for_scores(
         locus: str,
         loci: List[str]
@@ -2217,8 +2221,8 @@ def write_gfs(gfs, output, focal_window, idx_win_map):
             writer.writerow(header)
             rows = []
             for i, win in enumerate(sum_keys):
-                #if gfs['gfs'].get(win, 0) == 0:
-                    #continue
+                if gfs['gfs'].get(win, 0) == 0:
+                    continue
                 row = [idx_win_map.get(win, win)] + [gfs['loci'][locus][i] for locus in loci_keys] + [gfs['gfw'], gfs['gfs'][win]]
                 rows.append((gfs['gfs'][win], row))
             sorted_rows = sorted(rows, key=itemgetter(0), reverse=True)
@@ -2285,10 +2289,7 @@ def write_concat_gfs(
     conc_output: str,
     gfs_dict: Dict[str, Dict],
     idx_win_map: Dict[int, str],
-    full_set: Set[str],
-    n: int,
-    deduplication: bool
-) -> Union[None, Set[str]]:
+):
     """
     Writes gator focal scores (GFS) to a CSV file, handling both deduplication and concatenation.
 
@@ -2297,20 +2298,10 @@ def write_concat_gfs(
         gfs_dict (Dict): Dictionary containing the gator focal score data.
         idx_win_map (Dict[int, str]): Mapping from indices to window identifiers.
         full_set (Set[str]): Set to keep track of unique windows during deduplication.
-        n (int): Current iteration or step number, used for deduplication logic.
-        deduplication (bool): Flag indicating if deduplication is being performed.
-
-    Returns:
-        Union[None, Set[str]]: Returns the updated full_set if deduplication is True, otherwise None.
     """
     deduplication_scores = os.path.join(conc_output, 'deduplication_data')
-    concatenated_scores = os.path.join(conc_output, 'concatenated_scores')
-    if deduplication:
-        os.makedirs(deduplication_scores, exist_ok=True)
-        filepath = os.path.join(deduplication_scores, 'deduplication_gfs.csv')
-    else:
-        os.makedirs(concatenated_scores, exist_ok=True)
-        filepath = os.path.join(concatenated_scores, 'concatenated_gfs.csv')
+    os.makedirs(deduplication_scores, exist_ok=True)
+    filepath = os.path.join(deduplication_scores, 'deduplication_gfs.csv')
     file_empty = not os.path.exists(filepath) or os.stat(filepath).st_size == 0
     try:
         with open(filepath, mode='a', newline='') as oh:
@@ -2321,13 +2312,10 @@ def write_concat_gfs(
                 gfs = gfs_dict[focal]
                 rows = []
                 for win_index in gfs['sum']:
-                    if deduplication: ## this is new
-                        if gfs['gfs'][win_index] == 0:
-                            continue
+                    if gfs['gfs'][win_index] == 0:
+                        continue
                     row = [gfs['gfw'], idx_win_map[win_index], gfs['gfs'][win_index]]
                     rows.append((gfs['gfs'][win_index], row))
-                    if deduplication and n == 1:
-                        full_set.add(idx_win_map[win_index][:-5])
                 sorted_rows = sorted(rows, key=itemgetter(0), reverse=True)
                 for _, row in sorted_rows:
                     writer.writerow(row)
@@ -2335,14 +2323,12 @@ def write_concat_gfs(
         logging.error(f"Failed to write GFS data to {filepath}: {e}")
         raise IOError(f"Failed to write to file {filepath}. Error: {e}")
 
-    if deduplication:
-        return full_set
-
 def subset_dbfaa(
         db: str,
         deduplicate_wins: Dict[str, Any],
         output_faa: str,
         repre: str,
+        all_repres: Set[str],
         sorted_windows: List[str],
         verbose: bool = False
 ) -> Optional[str]:
@@ -2360,8 +2346,7 @@ def subset_dbfaa(
     Returns:
         Optional[str]: Path to the output FASTA file if sequences are written, None otherwise.
     """
-    windows_to_remove = set(deduplicate_wins.keys())
-    windows_to_remove.discard(repre)
+    windows_to_remove = set(deduplicate_wins.keys() - set(all_repres))
     for win in windows_to_remove:
         if win in sorted_windows:
             sorted_windows.remove(win)
@@ -2429,10 +2414,31 @@ def make_newdbfaa(
         logging.error(f"Error reading from source file {faa}: {e}")
         raise IOError(f"Failed to read from source file {faa}. Error: {e}")
 
+def parse_gfs_deduplicates(deduplication_data, deduplicate_wins):
+    comparisons = set()
+    with open(deduplication_data, 'r') as fh:
+        next(fh)
+        for line in fh:
+            l = line.strip().split(',')
+            w1 = f"{os.path.splitext(l[0])[0]}.gbff"
+            w2 = f"{os.path.splitext(l[1])[0]}.gbff"
+            gfs = l[2]
+            if w1 in deduplicate_wins and w2 in deduplicate_wins:
+                comparisons.add((w1, w2, gfs))
+    return comparisons
+
+def write_deduplicate_gfs(conc_output, comparisons):
+    os.makedirs(conc_output, exist_ok=True)
+    filepath = os.path.join(conc_output, 'concatenated_gfs.csv')
+    with open(filepath, 'w') as oh:
+        oh.write(f"Gator Focal Window,Gator Window,Gator Focal Score\n")
+        for pair in comparisons:
+            w1, w2, gfs = pair
+            oh.write(f"{w1},{w2},{gfs}\n")
+
 def calculating_gator_conservation_percentages(
         pa_table: Dict[str, Dict],
-        deduplicate_windows: List[str],
-        verbose: bool = False
+        verbose: bool = False,
 ) -> Dict[str, Dict[str, float]]:
     """                                                                                                                                                  
     Calculate the Gator Conservation Percentages from the presence-absence tables.                                                                       
@@ -2446,28 +2452,45 @@ def calculating_gator_conservation_percentages(
         Dict[str, Dict[str, float]]: A dictionary with conservation percentages, structured with outer keys as                                           
                                      Gator Focal Windows, inner keys as loci, and values as conservation percentages.                                    
     """
-    percentages = {}
     try:
-        for unq in deduplicate_windows:
-            if unq in pa_table:
-                pa_tables = pa_table[unq]
-                window_genbank = os.path.splitext(os.path.basename(unq))[0]
-                loci = pa_tables['loci'].keys()
-                percentages[window_genbank] = {}
-                valid_rows = []
-                for i in range(len(next(iter(pa_tables['loci'].values())))):
-                    if any(pa_tables['loci'][locus][i] != 0 for locus in loci):
-                        valid_rows.append(i)
-                for locus in loci:
-                    values = [pa_tables['loci'][locus][i] for i in valid_rows]
-                    if values:
-                        percentage = sum(values) / len(values)
-                        percentages[window_genbank][locus] = percentage
+        percentages = {}
+        for unq in pa_table:
+            pa_tables = pa_table[unq]
+            window_genbank = os.path.splitext(os.path.basename(unq))[0]
+            loci = pa_tables['loci'].keys()
+            percentages[window_genbank] = {}
+            valid_rows = []
+            for i in range(len(next(iter(pa_tables['loci'].values())))):
+                if any(pa_tables['loci'][locus][i] != 0 for locus in loci):                
+                    valid_rows.append(i)
+            for locus in loci:
+                values = [pa_tables['loci'][locus][i] for i in valid_rows]
+                if values:
+                    percentage = sum(values) / len(values)
+                    percentages[window_genbank][locus] = percentage
         return percentages
     except Exception as e:
         logging.error(f"Error calculating conservation percentages: {e}")
         raise ValueError(f"Failed to calculate conservation percentages. Error: {e}")
 
+def write_individual_percentages(percentages: dict, output_dir: str) -> None:
+    """
+    Writes one CSV per representative, each with locus conservation data.
+    
+    Args:
+        percentages (dict): {rep_window: {locus: value, ...}, ...}
+        output_dir (str): Directory to save the tables.
+        as_percent (bool): If True, convert values to percentage (0.75 -> 75.0).
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    for window, locus_data in percentages.items():
+        filename = os.path.join(output_dir, f"{window}_percentages.csv")
+        with open(filename, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Locus', 'Conservation %'])
+            for locus, pct in sorted(locus_data.items()):
+                writer.writerow([locus, round(pct * 100, 2)])
+               
 def generating_clustermap(
         concatenated_GFSs: str,
         output_dir: str,
@@ -3184,7 +3207,10 @@ if __name__ == "__main__":
     output_concatenated_gfs = os.path.join(output_concatenated, 'concatenated_gfs.csv')
     output_clustermap = os.path.join(output_concatenated, 'clustermap_gfs.svg')
     output_gator_conser_figs = os.path.join(args.o, 'gator_conservation_plots')
+    output_gator_con_tsv = os.path.join(args.o, 'gator_conservation_tables')
     output_gator_neigh_figs = os.path.join(args.o, 'gator_neighborhoods_plots')
+    input_deduplication_gfs = os.path.join(args.o, 'deduplication_data', 'deduplication_gfs.csv')
+
 
     ## Initialize query protein dictionary
     q = {}
@@ -3332,7 +3358,7 @@ if __name__ == "__main__":
 
     ## deduplication process and generation of dbfaa with unique windows
     with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_allvall_proteins_', suffix='.faa', mode='w', delete=False) as newdbfaa:
-        unq_windows = deduplication_for_windows(
+        unq_windows, all_pa, all_idx, all_win_id, all_all_hits, all_per = deduplication_for_windows(
             args.o,
             dbfaa.name,
             dmnd_db.name,
@@ -3359,71 +3385,14 @@ if __name__ == "__main__":
     for rwin in list(map_pa.keys()):
         if rwin not in unq_windows:
             map_pa.pop(rwin)
-    
-    ## running diamond for deduplicate data
-    pa = {}
-    with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_dmnd_out_', suffix='.dmnd', mode='w', delete=False) as deduplicate_dmnd_out:
-        run_diamond(
-            newdbfaa.name,
-            newdmnd_db.name,
-            deduplicate_dmnd_out.name,
-            args.t,
-            args.qc,
-            args.idt,
-            False,
-            args.bs,
-            args.k,
-            verbose=args.v
-        )
-        pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(
-            deduplicate_dmnd_out.name,
-            pa,
-            map_pa,
-            output_pa_tables,
-            True,
-            True,
-            map_dmnd,
-            verbose=args.v
-        )
 
-    ## presence absence tables are created at
-    logging.info(f"Gene level presence absence tables for deduplicated gator windows created sucessfully in {output_pa_tables}")
-    
-    ## calculating locus conservation percentage                                                                                                                                         
-    percentages = calculating_gator_conservation_percentages(
-        pa,
-        unq_windows,
-        verbose=args.v
-    ) 
+    ## parse gfs for deduplicate windows
+    deduplicate_gfs = parse_gfs_deduplicates(input_deduplication_gfs, unq_windows)
+    write_deduplicate_gfs(output_concatenated, deduplicate_gfs)
+    logging.info(f"Concatenated of gator focal scores across deduplicated gator windows created sucessfully in {output_concatenated}")
 
-    ## getting gator focal scores
-    unq_gfs, itself_comp = {}, {}
-    s_gfs = get_gfs(
-        pa,
-        req_opt_locus,
-        args.o,
-        idx_win_map,
-        unq_gfs,
-        itself_comp,
-        False,
-        True,
-        verbose=args.v
-    )
-
-    ## gator focal scores tables are created at
-    logging.info(f"Gator focal scores tables for deduplicated gator windows created sucessfully in {output_gfs}")
-
-    ## write concatenated file with all gator focal scores
-    empty_str = ''
-    write_concat_gfs(
-        args.o, s_gfs,
-        idx_win_map,
-        empty_str,
-        empty_str,
-        False
-    )
-
-    logging.info(f"Concatenated of gator focal scores across deduplicated gator windows created sucessfully in {output_concatenated_gfs}")
+    ## write tsv table for gene conservation percentages
+    write_individual_percentages(all_per, output_gator_con_tsv)
 
     ## making the clustermap for the gator focal scores concatenate
     if len(final_window) != 1 and len(unq_windows) != 1:
@@ -3437,7 +3406,7 @@ if __name__ == "__main__":
     if args.nc is not True:
         gator_conservation_plot(
             map_ge,
-            percentages,
+            all_per,
             output_gator_conser_figs,
             unq_windows,
             adaptable_height=False,
@@ -3453,16 +3422,15 @@ if __name__ == "__main__":
         make_gator_windows_neighborhood_figures(
             map_ge,
             ordered_windows_w_focal,
-            windows_identity,
+            all_win_id,
             output_gator_neigh_figs,
-            percentages,
+            all_per,
             ordering_windows_by_GFS,
             unq_windows,
-            all_hits,
+            all_all_hits,
             adaptable_height=True,
             verbose=args.v
         )
     
     ## elapsed time
     elapsed_time(stime)
-
