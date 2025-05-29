@@ -1639,7 +1639,7 @@ def deduplication_for_windows(
     n = 0
     next_faa = None
     all_repres = set()
-    all_pa, all_idx, all_win_id, all_all_hits, all_per = {}, {}, {}, {}, {}
+    all_per, all_win_id, all_all_hits, all_per = {}, {}, {}, {}
     all_win_set = set(os.path.splitext(k)[0] for k in raw_map_pa.keys())
     with TemporaryDirectory(dir=directory_output) as temp_dir:
         initial_repre = get_faa(temp_dir, dbfaa, no_repre, biggest_window, verbose)
@@ -1652,10 +1652,8 @@ def deduplication_for_windows(
             diamond_output = os.path.join(temp_dir, f"{faa_name}.dmnd")
             run_diamond(faa, current_dmnddb, diamond_output, args.t, args.qc, args.idt, False, args.bs, args.k, verbose)
             pa, idx_win_map, windows_identity, all_hits = parse_diamond_pa(diamond_output, {}, raw_map_pa, output, map_dmnd, verbose)
-            percentages = calculating_gator_conservation_percentages(pa, verbose=args.v)
+            percentages = calculating_gator_conservation_percentages(pa, verbose)
             all_per.update(percentages)
-            all_pa.update(pa)
-            all_idx.update(idx_win_map)
             all_win_id.update(windows_identity)
             all_all_hits.update(all_hits)
             gfs, unq_gfs, itself_comp = get_gfs(pa, req_opt_locus, directory_output, idx_win_map, unq_gfs, itself_comp, verbose)
@@ -1677,7 +1675,7 @@ def deduplication_for_windows(
             if next_faa and next_faa not in repre_list:
                 repre_list.append(next_faa)
         unq_windows = get_unique_comp(os.path.join(directory_output, 'deduplication_data', 'unq_comp.tsv'), unq_gfs, itself_comp, verbose)
-    return unq_windows, all_pa, all_idx, all_win_id, all_all_hits, all_per
+    return unq_windows, all_win_id, all_all_hits, all_per
 
 def deduplication_progress(all_windows: set, unq_gfs: Dict) -> Tuple[float, float]:
     processed_windows = set(unq_gfs)
@@ -1919,15 +1917,16 @@ def process_diamond_line(
             logging.debug(f"Updated presence hit data for {ql} in {qw}")
     if verbose:
         logging.debug(f"Updating windows identity for {qw} and {hw}")
-    windows_identity = meta_homology_rails(
-        windows_identity, qw, hw, map_dmnd[qw][ql]['nrps'], map_dmnd[qw][ql]['pks'],
-        map_dmnd[qw][ql]['start'], map_dmnd[qw][ql]['end'], map_dmnd[qw][ql]['strand'],
-        query_aa_start, query_aa_end, map_dmnd[hw][hl]['nrps'], map_dmnd[hw][hl]['pks'],
-        map_dmnd[hw][hl]['start'], map_dmnd[hw][hl]['end'], map_dmnd[hw][hl]['strand'],
-        hit_aa_start, hit_aa_end, per_identity, map_dmnd[qw][ql]['record_length'], 
-        map_dmnd[hw][hl]['record_length'], bit_score, ql, hl
-    )
-    all_hits = get_all_hits(all_hits, ql, hl, per_identity)
+    if not args.nn:
+        windows_identity = meta_homology_rails(
+            windows_identity, qw, hw, map_dmnd[qw][ql]['nrps'], map_dmnd[qw][ql]['pks'],
+            map_dmnd[qw][ql]['start'], map_dmnd[qw][ql]['end'], map_dmnd[qw][ql]['strand'],
+            query_aa_start, query_aa_end, map_dmnd[hw][hl]['nrps'], map_dmnd[hw][hl]['pks'],
+            map_dmnd[hw][hl]['start'], map_dmnd[hw][hl]['end'], map_dmnd[hw][hl]['strand'],
+            hit_aa_start, hit_aa_end, per_identity, map_dmnd[qw][ql]['record_length'], 
+            map_dmnd[hw][hl]['record_length'], bit_score, ql, hl
+        )
+        all_hits = get_all_hits(all_hits, ql, hl, per_identity)
     logging.debug(f"Updated all hits for {ql} and {hl}")
 
 def initialize_pa_data_structure(
@@ -3358,7 +3357,7 @@ if __name__ == "__main__":
 
     ## deduplication process and generation of dbfaa with unique windows
     with tempfile.NamedTemporaryFile(dir=args.o, prefix='deduplicate_allvall_proteins_', suffix='.faa', mode='w', delete=False) as newdbfaa:
-        unq_windows, all_pa, all_idx, all_win_id, all_all_hits, all_per = deduplication_for_windows(
+        unq_windows, all_win_id, all_all_hits, all_per = deduplication_for_windows(
             args.o,
             dbfaa.name,
             dmnd_db.name,
@@ -3403,7 +3402,7 @@ if __name__ == "__main__":
         )
 
     ## making the gator conservation figures
-    if args.nc is not True:
+    if not args.nc:
         gator_conservation_plot(
             map_ge,
             all_per,
@@ -3414,11 +3413,11 @@ if __name__ == "__main__":
         )
 
     ## ordering windows based on gator focal scores
-    if len(final_window) != 1 and len(unq_windows) != 1 and args.nn is not True:
+    if len(final_window) != 1 and len(unq_windows) != 1 and not args.nn:
         ordered_windows_w_focal, ordering_windows_by_GFS = ordering_windows_by_GFSs(output_concatenated_gfs)
         
     ## making the window neighborhood figures
-    if len(final_window) != 1 and len(unq_windows) != 1 and args.nn is not True:
+    if len(final_window) != 1 and len(unq_windows) != 1 and not args.nn:
         make_gator_windows_neighborhood_figures(
             map_ge,
             ordered_windows_w_focal,
