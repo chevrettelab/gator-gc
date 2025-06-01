@@ -6,6 +6,7 @@ import csv
 import os
 import glob
 import logging
+import operator
 import pandas as pd
 import numpy as np
 import subprocess
@@ -2741,39 +2742,35 @@ def gator_conservation_plot(
         logging.error(f"Error generating conservation plots: {e}")
         raise RuntimeError(f"Failed to generate conservation plots. Error: {e}")
 
-def ordering_windows_by_GFSs(
-        concatenated_GFSs: str
-) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, float]]]:
+def ordering_windows_by_GFSs(concatenated_GFSs):
     """
-    Orders the windows based on the Gator focal scores for each Gator focal window.
-
-    Args:
-        concatenated_GFSs (str): Path to the concatenated table with information about Gator focal windows and Gator focal scores.
-
-    Returns:
-        Tuple[Dict[str, List[str]], Dict[str, Dict[str, float]]]: 
-            - A dictionary with Gator focal windows as keys and lists of ordered Gator windows as values.
-            - A dictionary with Gator focal windows as keys and dictionaries of Gator windows with their scores as values.
+    Parses the GFS file and returns:
+    1. ordered_windows_w_focal: dict of gator_focal -> list of gator_no_focal (ordered by score, focal always first if present)
+    2. ordered_windows_GFS: dict of gator_focal -> dict of gator_no_focal -> score (sorted descending by score)
     """
     ordered_windows_w_focal = {}
     ordered_windows_GFS = {}
+    
     try:
         with open(concatenated_GFSs, 'r') as fh:
-            next(fh) 
+            next(fh)  # Skip header
             for row in fh:
                 columns = row.strip().split(',')
                 gator_focal, gator_no_focal, gator_score = columns[0], columns[1], float(columns[2])
-                if gator_focal not in ordered_windows_w_focal:
-                    ordered_windows_w_focal[gator_focal] = []
-                ordered_windows_w_focal[gator_focal].append(gator_no_focal)
-                if gator_no_focal == gator_focal:
-                    ordered_windows_w_focal[gator_focal].remove(gator_no_focal)
-                    ordered_windows_w_focal[gator_focal].insert(0, gator_no_focal)
                 if gator_focal not in ordered_windows_GFS:
                     ordered_windows_GFS[gator_focal] = {}
                 ordered_windows_GFS[gator_focal][gator_no_focal] = gator_score
+        for gator_focal, no_focal_dict in ordered_windows_GFS.items():
+            sorted_no_focals = sorted(no_focal_dict.items(), key=lambda x: x[1], reverse=True)
+            sorted_names = [name for name, score in sorted_no_focals]
+            if gator_focal in sorted_names:
+                sorted_names.remove(gator_focal)
+                sorted_names.insert(0, gator_focal)
+            ordered_windows_w_focal[gator_focal] = sorted_names
+            ordered_windows_GFS[gator_focal] = {k: v for k, v in sorted_no_focals}
         return ordered_windows_w_focal, ordered_windows_GFS
-    except FileNotFoundError as e:
+
+    except FileNotFoundError:
         logging.error(f"File not found: {concatenated_GFSs}")
         raise
     except Exception as e:
