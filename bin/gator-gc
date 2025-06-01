@@ -2346,9 +2346,7 @@ def subset_dbfaa(
         Optional[str]: Path to the output FASTA file if sequences are written, None otherwise.
     """
     windows_to_remove = set(deduplicate_wins.keys() - set(all_repres))
-    for win in windows_to_remove:
-        if win in sorted_windows:
-            sorted_windows.remove(win)
+    sorted_windows[:] = [w for w in sorted_windows if w not in windows_to_remove]
     sequences_to_write = []
     keep_sequence = False
     try:
