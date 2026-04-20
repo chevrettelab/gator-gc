@@ -3247,12 +3247,36 @@ if __name__ == "__main__":
             verbose=args.v
         )
 
-    ## Create nonmodular fasta (to be subsequent diamond query)
-    nonmodular_queries = tempfile.NamedTemporaryFile(dir=args.o, prefix='non_modular_queries_', suffix='.faa', mode='w', delete=False)
-    for header in q:
-        if not q[header]['is_nrps'] and not q[header]['is_pks']:
-            nonmodular_queries.write('>'+header+"\n"+q[header]['seq']+"\n")
-    nonmodular_queries.close()
+    ## Collect non-modular sequences first
+    nonmodular_entries = [
+        (header, q[header]['seq'])
+        for header in q
+        if not q[header]['is_nrps'] and not q[header]['is_pks']
+    ]
+
+    # Only create nonmodular fasta (to be subsequent diamond query) if there is content
+    if nonmodular_entries:
+        nonmodular_queries = tempfile.NamedTemporaryFile(
+            dir=args.o,
+            prefix='non_modular_queries_',
+            suffix='.faa',
+            mode='w',
+            delete=False
+        )
+        
+        for header, seq in nonmodular_entries:
+            nonmodular_queries.write(f">{header}\n{seq}\n")
+            
+        nonmodular_queries.close()
+    else:
+        nonmodular_queries = None
+
+    #nonmodular_queries = tempfile.NamedTemporaryFile(dir=args.o, prefix='non_modular_queries_', suffix='.faa', mode='w', delete=False)
+    #for header in q:
+        #print(header, 'FJSLKDJFLSJFLSJFLKJSDJFGKS')
+        #if not q[header]['is_nrps'] and not q[header]['is_pks']:    
+            #nonmodular_queries.write('>'+header+"\n"+q[header]['seq']+"\n")
+    #nonmodular_queries.close()
 
     ## Getting paths for gator databases
     dmnd_database, domtblout_database = get_dmnd_domtblout_paths(
@@ -3269,27 +3293,30 @@ if __name__ == "__main__":
     )
 
     # diamond against nonmodular fasta
-    with tempfile.NamedTemporaryFile(dir=args.o, prefix='dmnd_out_', suffix='.txt', mode='w', delete=False) as dmnd_out:
-        logging.info(f"Running Diamond with {nonmodular_queries.name} against {dmnd_database}")
-        run_diamond(
-            nonmodular_queries.name,
-            dmnd_database,
+    if nonmodular_queries is None:
+        logging.info("No non-modular queries found. Skipping DIAMOND step.")
+    else:
+        with tempfile.NamedTemporaryFile(dir=args.o, prefix='dmnd_out_', suffix='.txt', mode='w', delete=False) as dmnd_out:
+            logging.info(f"Running Diamond with {nonmodular_queries.name} against {dmnd_database}")
+            run_diamond(
+                nonmodular_queries.name,
+                dmnd_database,
+                dmnd_out.name,
+                args.t,
+                args.qc,
+                args.idt,
+                args.us,
+                args.bs,
+                args.k,
+                verbose=args.v
+            )
+
+        ## parse diamond search
+        parse_diamond_search(
             dmnd_out.name,
-            args.t,
-            args.qc,
-            args.idt,
-            args.us,
-            args.bs,
-            args.k,
+            q,
             verbose=args.v
         )
-
-    ## parse diamond search
-    parse_diamond_search(
-        dmnd_out.name,
-        q,
-        verbose=args.v
-    )
 
     ## grouping query proteins hits by contig
     req_hits_by_contig, all_required_proteins = grouping_user_req_opt_proteins_by_contig(
